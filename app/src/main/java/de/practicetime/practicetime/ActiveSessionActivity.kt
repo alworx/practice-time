@@ -102,9 +102,6 @@ class ActiveSessionActivity : AppCompatActivity() {
                 0
             )
         )
-
-
-        // TODO handle update UI
     }
 
     private fun endSection() {
@@ -130,7 +127,6 @@ class ActiveSessionActivity : AppCompatActivity() {
     private fun resumeSession(categoryId: Int) {
         paused = false
         pauseDuration = 0
-        // TODO hide fab
         // swap pause icon with play icon
         findViewById<ImageButton>(R.id.bottom_pause).apply {
             setImageResource(R.drawable.ic_pause)
@@ -160,7 +156,6 @@ class ActiveSessionActivity : AppCompatActivity() {
             1
         )
 
-        // TODO consider pause time when saving
         lifecycleScope.launch {
             // create a new session row and save its id
             val sessionId = dao?.insertSession(newSession)
