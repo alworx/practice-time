@@ -13,13 +13,19 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.room.Room
+import androidx.transition.Fade
+import androidx.transition.TransitionManager
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 import de.practicetime.practicetime.entities.Category
 import de.practicetime.practicetime.entities.PracticeSection
 import de.practicetime.practicetime.entities.PracticeSession
 import kotlinx.coroutines.launch
 import java.util.*
 import kotlin.collections.ArrayList
+
+
+
 
 private var dao: PTDao? = null
 // the sectionBuffer will keep track of all the section in the current session
@@ -45,13 +51,17 @@ class ActiveSessionActivity : AppCompatActivity() {
 
         initEndSessionDialog()
 
-        val btnPause = findViewById<ImageButton>(R.id.bottom_pause)
-        btnPause.setOnClickListener {
-            if (paused) {
-                // resume the Session with the last category
-                resumeSession(sectionBuffer.last().first.category_id)
-            } else {
-                pauseSession()
+        findViewById<FloatingActionButton>(R.id.fab_stop).visibility = View.INVISIBLE
+        findViewById<ExtendedFloatingActionButton>(R.id.fab_pause).apply {
+            shrink()
+            visibility = View.INVISIBLE
+            setOnClickListener {
+                if (paused) {
+                    // resume the Session with the last category
+                    resumeSession(sectionBuffer.last().first.category_id)
+                } else {
+                    pauseSession()
+                }
             }
         }
     }
@@ -82,8 +92,8 @@ class ActiveSessionActivity : AppCompatActivity() {
         if (!sessionActive) {   // session starts now
             sessionActive = true
             fillSectionListView(true)
-            findViewById<ImageButton>(R.id.bottom_pause).visibility = View.VISIBLE
-            findViewById<ImageButton>(R.id.bottom_stop).visibility = View.VISIBLE
+            findViewById<ExtendedFloatingActionButton>(R.id.fab_pause).show()
+            findViewById<FloatingActionButton>(R.id.fab_stop).show()
         } else {
             endSection()
         }
@@ -118,26 +128,48 @@ class ActiveSessionActivity : AppCompatActivity() {
     private fun pauseSession() {
         paused = true
         // swap pause icon with play icon
-        findViewById<ImageButton>(R.id.bottom_pause).apply {
-            setImageResource(R.drawable.ic_play)
+        findViewById<ExtendedFloatingActionButton>(R.id.fab_pause).apply {
+            setIconResource(R.drawable.ic_play)
+            extend()
         }
-        // show the fab
-        findViewById<ExtendedFloatingActionButton>(R.id.fab_info_popup).apply {
-            show()
+        showOverlay()
+    }
+
+    private fun showOverlay() {
+        val transition = Fade().apply {
+            duration = 600
+            addTarget(R.id.tv_overlay_pause)
         }
+        TransitionManager.beginDelayedTransition(
+            findViewById(R.id.coordinator_layout_active_session),
+            transition
+        )
+
+        findViewById<TextView>(R.id.tv_overlay_pause).visibility = View.VISIBLE
+    }
+
+    private fun hideOverlay() {
+        // Animation causes ExtendedFAB shrink animation to lag
+//        val transition = Fade().apply {
+//            duration = 600
+//            addTarget(R.id.tv_overlay_pause)
+//        }
+//        TransitionManager.beginDelayedTransition(
+//            findViewById(R.id.coordinator_layout_active_session),
+//            transition
+//        )
+        findViewById<TextView>(R.id.tv_overlay_pause).visibility = View.GONE
     }
 
     private fun resumeSession(categoryId: Int) {
         paused = false
         pauseDuration = 0
         // swap pause icon with play icon
-        findViewById<ImageButton>(R.id.bottom_pause).apply {
-            setImageResource(R.drawable.ic_pause)
+        findViewById<ExtendedFloatingActionButton>(R.id.fab_pause).apply {
+            setIconResource(R.drawable.ic_pause)
+            shrink()
         }
-        // show the fab
-        findViewById<ExtendedFloatingActionButton>(R.id.fab_info_popup).apply {
-            hide()
-        }
+        hideOverlay()
     }
 
     private fun endSession(rating: Int, comment: String?) {
@@ -199,12 +231,13 @@ class ActiveSessionActivity : AppCompatActivity() {
             }
             setNegativeButton(R.string.endSessionAlertCancel) { dialog, _ ->
                 dialog.cancel()
+                hideOverlay()
             }
         }
         val endSessionDialog: AlertDialog = endSessionDialogBuilder.create()
 
         // stop session button functionality
-        findViewById<ImageButton>(R.id.bottom_stop).setOnClickListener {
+        findViewById<FloatingActionButton>(R.id.fab_stop).setOnClickListener {
             // show the end session dialog
             endSessionDialog.show()
             endSessionDialog.also {
@@ -214,6 +247,7 @@ class ActiveSessionActivity : AppCompatActivity() {
                     positiveButton.isEnabled = rating.toInt() > 0
                 }
             }
+            showOverlay()
         }
     }
 
@@ -238,7 +272,7 @@ class ActiveSessionActivity : AppCompatActivity() {
     private fun practiceTimer() {
         // get the text views.
         val practiceTimeView = findViewById<TextView>(R.id.practiceTimer)
-        val fabInfoPause = findViewById<ExtendedFloatingActionButton>(R.id.fab_info_popup)
+        val fabPause = findViewById<ExtendedFloatingActionButton>(R.id.fab_pause)
 
         // creates a new Handler
         Handler(Looper.getMainLooper()).also {
@@ -261,7 +295,7 @@ class ActiveSessionActivity : AppCompatActivity() {
 
                             pauseDuration++
                             // display pause duration on the fab, but only time after pause was activated
-                            fabInfoPause.text = "Pause: %02d:%02d:%02d".format(
+                            fabPause.text = "Pause: %02d:%02d:%02d".format(
                                 pauseDuration / 3600,
                                 pauseDuration % 3600 / 60,
                                 pauseDuration % 60

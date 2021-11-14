@@ -3,6 +3,7 @@
 <androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/coordinator_layout_active_session"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:transitionName="transition_fab" >
@@ -77,24 +78,24 @@
     </LinearLayout>
 
 <androidx.constraintlayout.widget.ConstraintLayout
-    android:layout_width="match_parent"
+    android:layout_width="300dp"
     android:layout_height="56dp"
     android:layout_gravity="bottom|left"
     android:orientation="horizontal"
     android:animateLayoutChanges="true">
 
-    <ImageButton
-        android:id="@+id/bottom_pause"
-        android:layout_width="45dp"
-        android:layout_height="45dp"
-        android:src="@drawable/ic_pause"
-        android:background="?selectableItemBackgroundBorderless"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toStartOf="@id/bottom_metronome"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintVertical_bias="0"
-        android:visibility="invisible"/>
+<!--    <ImageButton-->
+<!--        android:id="@+id/bottom_pause"-->
+<!--        android:layout_width="45dp"-->
+<!--        android:layout_height="45dp"-->
+<!--        android:src="@drawable/ic_pause"-->
+<!--        android:background="?selectableItemBackgroundBorderless"-->
+<!--        app:layout_constraintStart_toStartOf="parent"-->
+<!--        app:layout_constraintEnd_toStartOf="@id/bottom_metronome"-->
+<!--        app:layout_constraintTop_toTopOf="parent"-->
+<!--        app:layout_constraintBottom_toBottomOf="parent"-->
+<!--        app:layout_constraintVertical_bias="0"-->
+<!--        android:visibility="invisible"/>-->
 
     <ImageButton
         android:id="@+id/bottom_metronome"
@@ -102,11 +103,12 @@
         android:layout_height="45dp"
         android:src="@drawable/ic_metronome"
         android:background="?selectableItemBackgroundBorderless"
-        app:layout_constraintStart_toEndOf="@id/bottom_pause"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toStartOf="@id/bottom_record"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintVertical_bias="0" />
+        app:layout_constraintVertical_bias="0"
+        app:layout_constraintHorizontal_bias="0" />
 
     <ImageButton
         android:id="@+id/bottom_record"
@@ -115,42 +117,55 @@
         android:src="@drawable/ic_record"
         android:background="?selectableItemBackgroundBorderless"
         app:layout_constraintStart_toEndOf="@id/bottom_metronome"
-        app:layout_constraintEnd_toStartOf="@id/bottom_stop"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintVertical_bias="0"/>
 
-    <ImageButton
-        android:id="@+id/bottom_stop"
-        android:layout_width="45dp"
-        android:layout_height="45dp"
-        android:src="@drawable/ic_stop"
-        android:background="@drawable/ripple_oval"
-        app:layout_constraintStart_toEndOf="@id/bottom_record"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:tint="@color/white"
-        android:visibility="invisible"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintVertical_bias="0"/>
+<!--    <ImageButton-->
+<!--        android:id="@+id/bottom_stop"-->
+<!--        android:layout_width="45dp"-->
+<!--        android:layout_height="45dp"-->
+<!--        android:src="@drawable/ic_stop"-->
+<!--        android:background="@drawable/ripple_oval"-->
+<!--        app:layout_constraintStart_toEndOf="@id/bottom_record"-->
+<!--        app:layout_constraintEnd_toEndOf="parent"-->
+<!--        app:layout_constraintTop_toTopOf="parent"-->
+<!--        app:tint="@color/white"-->
+<!--        android:visibility="invisible"-->
+<!--        app:layout_constraintBottom_toBottomOf="parent"-->
+<!--        app:layout_constraintVertical_bias="0"/>-->
 
 </androidx.constraintlayout.widget.ConstraintLayout>
 
 
-
 <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
-    android:id="@+id/fab_info_popup"
-    android:visibility="invisible"
+    android:id="@+id/fab_pause"
+    android:visibility="visible"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:layout_marginStart="16dp"
     android:layout_marginEnd="16dp"
     android:layout_marginBottom="90dp"
-    app:rippleColor="@null"
-    android:text="Pause: 00:25:13"
-    android:layout_gravity="bottom|center"
-    app:icon="@android:drawable/ic_dialog_info"/>
+    android:layout_gravity="bottom|right"
+    android:text="Pause: 00:00:00"
+    app:icon="@drawable/ic_pause"/>
+
+<com.google.android.material.floatingactionbutton.FloatingActionButton
+    android:id="@+id/fab_stop"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_gravity="end|bottom"
+    android:layout_margin="16dp"
+    android:src="@drawable/ic_stop"/>
 
 
+    <TextView
+        android:id="@+id/tv_overlay_pause"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone"
+        android:clickable="true"
+        android:background="#bb000000" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
