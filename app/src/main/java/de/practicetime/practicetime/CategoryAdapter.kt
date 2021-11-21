@@ -41,9 +41,9 @@ class CategoryAdapter(
         // the handler for creating new categories
         fun addCategoryHandler(newCategory: Category) {
             lifecycleScope.launch {
-                dao?.insertCategory(newCategory)
-                categories.add(newCategory)
-                notifyItemInserted(categories.size)
+                val id = dao!!.insertCategory(newCategory)
+                categories.add(0, dao.getCategory(id.toInt())!!)
+                notifyItemInserted(0)
             }
         }
 

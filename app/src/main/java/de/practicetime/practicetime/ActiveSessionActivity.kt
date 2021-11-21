@@ -127,19 +127,6 @@ class ActiveSessionActivity : AppCompatActivity() {
                 context = this,
         )
 
-        categoryAdapter.addCategoryDialog?.alertDialog?.setOnDismissListener {
-            lifecycleScope.launch {
-                categories.clear()
-                activeCategories = dao?.getActiveCategories().also {
-                    if (it != null) {
-                        categories.addAll(it)
-                    }
-                }
-                // notifyDataSetChanged necessary here since all items might have changed
-                categoryAdapter.notifyDataSetChanged()
-            }
-        }
-
         val categoryList = findViewById<RecyclerView>(R.id.categoryList)
 
         val rowNums = 3
@@ -158,12 +145,8 @@ class ActiveSessionActivity : AppCompatActivity() {
         }
 
         lifecycleScope.launch {
-            activeCategories = dao?.getActiveCategories()
-            if (activeCategories != null) {
-                categories.addAll(activeCategories!!)
-            }
-            // notifyDataSetChanged necessary here since all items might have changed
-            categoryAdapter.notifyDataSetChanged()
+            dao?.getActiveCategories()?.let { categories.addAll(it.reversed()) }
+            categoryAdapter.notifyItemRangeInserted(0, categories.size)
         }
     }
 

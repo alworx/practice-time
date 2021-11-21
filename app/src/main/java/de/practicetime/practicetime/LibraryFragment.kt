@@ -50,12 +50,13 @@ class LibraryFragment : Fragment(R.layout.fragment_library) {
         )
 
         val categoryListView = requireActivity().findViewById<RecyclerView>(R.id.libraryCategoryList)
-        categoryListView.layoutManager = GridLayoutManager(context, 2)
-        categoryListView.adapter = categoryAdapter
+        categoryListView.apply {
+            layoutManager = GridLayoutManager(context, 2)
+            adapter = categoryAdapter
+        }
 
         lifecycleScope.launch {
-            dao?.getActiveCategories()?.let { categories.addAll(it) }
-            // notifyDataSetChanged necessary here since all items might have changed
+            dao?.getActiveCategories()?.let { categories.addAll(it.reversed()) }
             categoryAdapter?.notifyItemRangeInserted(0, categories.size)
         }
     }
