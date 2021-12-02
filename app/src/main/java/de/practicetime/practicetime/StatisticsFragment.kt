@@ -681,13 +681,12 @@ class StatisticsFragment : Fragment(R.layout.fragment_statistics) {
     }
 
     private fun secondsToHoursMins(seconds: Int?): Pair<Int?, Int?> {
-        // TODO uncomment for production
-//        val hours = seconds?.div(3600)
-//        val minutes = (seconds?.rem(3600))?.div(60)
+        val hours = seconds?.let{it / 3600}
+        val minutes = seconds?.let { it % 3600 / 60 }
 
         // FAKE values:
-        val hours = (seconds?.rem(3600))?.div(60)
-        val minutes = seconds?.rem(60)
+//        val hours = (seconds?.rem(3600))?.div(60)
+//        val minutes = seconds?.rem(60)
 
         return Pair(hours, minutes)
     }

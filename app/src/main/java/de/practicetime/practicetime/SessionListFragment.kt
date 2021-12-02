@@ -398,19 +398,19 @@ class SessionListFragment : Fragment(R.layout.fragment_sessions_list) {
             if (prefs.getBoolean("firstrun", true)) {
 
                 // populate the category table on first run
-                listOf(
-                    Category(name="Die Schöpfung", colorIndex=0),
-                    Category(name="Beethoven Septett", colorIndex=1),
-                    Category(name="Schostakowitsch 9.", colorIndex=2),
-                    Category(name="Trauermarsch c-Moll", colorIndex=3),
-                    Category(name="Adagio", colorIndex=4),
-                    Category(name="Eine kleine Gigue", colorIndex=5),
-                    Category(name="Andantino", colorIndex=6),
-                    Category(name="Klaviersonate", colorIndex=7),
-                    Category(name="Trauermarsch", colorIndex=8),
-                ).forEach {
-                    dao?.insertCategory(it)
-                }
+//                listOf(
+//                    Category(name="Die Schöpfung", colorIndex=0),
+//                    Category(name="Beethoven Septett", colorIndex=1),
+//                    Category(name="Schostakowitsch 9.", colorIndex=2),
+//                    Category(name="Trauermarsch c-Moll", colorIndex=3),
+//                    Category(name="Adagio", colorIndex=4),
+//                    Category(name="Eine kleine Gigue", colorIndex=5),
+//                    Category(name="Andantino", colorIndex=6),
+//                    Category(name="Klaviersonate", colorIndex=7),
+//                    Category(name="Trauermarsch", colorIndex=8),
+//                ).forEach {
+//                    dao?.insertCategory(it)
+//                }
 
                 prefs.edit().putBoolean("firstrun", false).apply()
             }
