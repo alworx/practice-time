@@ -503,7 +503,7 @@ class ActiveSessionActivity : AppCompatActivity() {
                 10000
             ).apply {
                 anchorView =
-                    if(recordingBottomSheetBehaviour.state == BottomSheetBehavior.STATE_HIDDEN)
+                    if(recordingBottomSheetBehaviour.state != BottomSheetBehavior.STATE_EXPANDED)
                         recordingBottomSheet
                     else findViewById<ConstraintLayout>(R.id.constraintLayout_Bottom_btn)
 
@@ -955,8 +955,15 @@ class ActiveSessionActivity : AppCompatActivity() {
                 val containerView: FrameLayout = view.findViewById(R.id.recording_container)
                 private val dividerView: View = view.findViewById(R.id.recording_file_divider)
 
-                private val playIcon = ContextCompat.getDrawable(context, R.drawable.ic_play)
-                private val pauseIcon = ContextCompat.getDrawable(context, R.drawable.ic_pause)
+                private val pause = ContextCompat.getDrawable(context, R.drawable.ic_pause)
+                private val play = ContextCompat.getDrawable(context, R.drawable.ic_play)
+
+                private val playToPause = ContextCompat.getDrawable(
+                context, R.drawable.avd_play_to_pause
+                ) as AnimatedVectorDrawable
+                private val pauseToPlay = ContextCompat.getDrawable(
+                    context, R.drawable.avd_pause_to_play
+                ) as AnimatedVectorDrawable
 
 
                 init {
@@ -969,16 +976,18 @@ class ActiveSessionActivity : AppCompatActivity() {
                     frontFragment = FrontFragment(recording)
                     backFragment = BackFragment(mediaPlayer)
 
-                    playFileView.icon = if(playerShowing && mediaPlayer.isPlaying) pauseIcon else playIcon
+                    playFileView.icon = if(playerShowing && mediaPlayer.isPlaying) pause else play
                     playFileView.setOnClickListener {
                         if(this.playerShowing) {
                             if(mediaPlayer.isPlaying) {
-                                playFileView.icon = playIcon
+                                playFileView.icon = pauseToPlay
+                                pauseToPlay.start()
                                 mediaPlayer.pause()
                             } else {
                                 if(mediaPlayer.currentPosition == mediaPlayer.duration)
                                     mediaPlayer.seekTo(0)
-                                playFileView.icon = pauseIcon
+                                playFileView.icon = playToPause
+                                playToPause.start()
                                 mediaPlayer.start()
                             }
                         } else {
@@ -998,13 +1007,14 @@ class ActiveSessionActivity : AppCompatActivity() {
                                 prepare()
                                 start()
                                 setOnCompletionListener {
-                                    playFileView.icon = playIcon
+                                    playFileView.icon = play
                                 }
                             }
                             setPlayingRecording(layoutPosition - 1)
 
                             this.playerShowing = true
-                            playFileView.icon = ContextCompat.getDrawable(context, R.drawable.ic_pause)
+                            playFileView.icon = playToPause
+                            playToPause.start()
 
                             // mark, that the player just flipped
                             justFlipped = true
