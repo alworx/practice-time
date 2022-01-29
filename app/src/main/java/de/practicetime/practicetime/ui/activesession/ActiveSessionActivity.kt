@@ -777,26 +777,20 @@ class ActiveSessionActivity : AppCompatActivity() {
         fun setPlayingRecording(newPlayingRecording: Int) {
             this.recyclerView.findViewHolderForAdapterPosition(playingRecording + 1)?.apply {
                 if (this !is ViewHolder.ItemViewHolder) return@apply
-                backFragment?.let { bFragment ->
-                    bFragment.stopUISync()
-                    frontFragment?.let { fFragment ->
-                        if(justFlipped) {
-                            context.supportFragmentManager.beginTransaction()
-                                .replace(containerView.id, fFragment)
-                                .commitNow()
-                        } else {
-                            context.supportFragmentManager.beginTransaction()
-                                .setCustomAnimations(
-                                    R.animator.flip_in,
-                                    R.animator.flip_out,
-                                )
-                                .replace(containerView.id, fFragment)
-                                .commit()
-                        }
-                    }
+                backFragment?.stopUISync()
+                frontFragment?.let { fFragment ->
+
+                    context.supportFragmentManager.beginTransaction()
+                        .setCustomAnimations(
+                            R.animator.flip_in,
+                            R.animator.flip_out,
+                        )
+                        .replace(containerView.id, fFragment)
+                        .commitNow()
                 }
                 playerShowing = false
-                playFileView.icon = ContextCompat.getDrawable(context, R.drawable.ic_play)
+                playFileView.icon = pauseToPlay
+                pauseToPlay.start()
             }
             playingRecording = newPlayingRecording
         }
@@ -949,7 +943,6 @@ class ActiveSessionActivity : AppCompatActivity() {
                 var backFragment: BackFragment? = null
 
                 var playerShowing = false
-                var justFlipped = false
 
                 val playFileView: MaterialButton = view.findViewById(R.id.recording_file_open)
                 val containerView: FrameLayout = view.findViewById(R.id.recording_container)
@@ -961,7 +954,7 @@ class ActiveSessionActivity : AppCompatActivity() {
                 private val playToPause = ContextCompat.getDrawable(
                 context, R.drawable.avd_play_to_pause
                 ) as AnimatedVectorDrawable
-                private val pauseToPlay = ContextCompat.getDrawable(
+                val pauseToPlay = ContextCompat.getDrawable(
                     context, R.drawable.avd_pause_to_play
                 ) as AnimatedVectorDrawable
 
@@ -998,7 +991,7 @@ class ActiveSessionActivity : AppCompatActivity() {
                                         R.animator.flip_out,
                                     )
                                     .replace(containerView.id, backFragment)
-                                    .commit()
+                                    .commitNow()
                             }
 
                             mediaPlayer.apply {
@@ -1015,12 +1008,6 @@ class ActiveSessionActivity : AppCompatActivity() {
                             this.playerShowing = true
                             playFileView.icon = playToPause
                             playToPause.start()
-
-                            // mark, that the player just flipped
-                            justFlipped = true
-                            Handler(Looper.getMainLooper()).postDelayed({
-                                justFlipped = false
-                            }, 500L)
                         }
                     }
                     dividerView.visibility = if(lastItem) View.GONE else View.VISIBLE
