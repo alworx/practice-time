@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<animated-vector
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:drawable="@drawable/ic_sessions">
+
+    <target android:name="sessions">
+        <aapt:attr name="android:animation">
+            <set android:ordering="sequentially">
+                <objectAnimator
+                    android:propertyName="pathData"
+                    android:duration="200"
+                    android:valueFrom="@string/ic_sessions"
+                    android:valueTo="@string/ic_sessions_stretched"
+                    android:valueType="pathType"
+                    android:interpolator="@android:interpolator/linear_out_slow_in"
+                    />
+                <objectAnimator
+                    android:propertyName="pathData"
+                    android:duration="600"
+                    android:valueFrom="@string/ic_sessions_stretched"
+                    android:valueTo="@string/ic_sessions"
+                    android:valueType="pathType"
+                    android:interpolator="@android:interpolator/bounce"
+                    />
+            </set>
+        </aapt:attr>
+    </target>
+    <target
+        android:name="rotation_group">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:propertyName="rotation"
+                android:valueFrom="0"
+                android:valueTo="120"
+                android:duration="700"
+                android:interpolator="@android:interpolator/overshoot" />
+        </aapt:attr>
+    </target>
+</animated-vector>
