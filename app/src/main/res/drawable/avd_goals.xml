@@ -9,11 +9,11 @@
             <set android:ordering="sequentially">
                 <objectAnimator
                     android:propertyName="pathData"
-                    android:duration="150"
+                    android:duration="200"
                     android:valueFrom="@string/ic_goals_kf_1"
                     android:valueTo="@string/ic_goals_kf_2"
                     android:valueType="pathType"
-                    android:interpolator="@android:interpolator/linear"
+                    android:interpolator="@android:interpolator/fast_out_linear_in"
                     />
                 <objectAnimator
                     android:propertyName="pathData"
@@ -33,11 +33,11 @@
                     />
                 <objectAnimator
                     android:propertyName="pathData"
-                    android:duration="150"
+                    android:duration="200"
                     android:valueFrom="@string/ic_goals_kf_4"
                     android:valueTo="@string/ic_goals_kf_5"
                     android:valueType="pathType"
-                    android:interpolator="@android:interpolator/linear"
+                    android:interpolator="@android:interpolator/linear_out_slow_in"
                     />
             </set>
         </aapt:attr>

@@ -13,7 +13,7 @@
                     android:valueFrom="@string/ic_sessions"
                     android:valueTo="@string/ic_sessions_stretched"
                     android:valueType="pathType"
-                    android:interpolator="@android:interpolator/linear_out_slow_in"
+                    android:interpolator="@android:interpolator/linear"
                     />
                 <objectAnimator
                     android:propertyName="pathData"
@@ -33,8 +33,13 @@
                 android:propertyName="rotation"
                 android:valueFrom="0"
                 android:valueTo="120"
-                android:duration="700"
-                android:interpolator="@android:interpolator/overshoot" />
+                android:duration="600"
+                >
+                    <aapt:attr name="android:interpolator">
+                        <overshootInterpolator
+                            android:tension="3.0"/>
+                    </aapt:attr>
+            </objectAnimator>
         </aapt:attr>
     </target>
 </animated-vector>

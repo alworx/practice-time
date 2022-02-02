@@ -10,13 +10,13 @@
 
   <group
       android:name="rotation_group"
-      android:pivotX="16"
+      android:pivotX="15.73"
       android:pivotY="17">
 
     <path
         android:name="play"
         android:fillColor="@color/md_purple_A700"
-        android:pathData="M14,14v6l5,-3z"/>
+        android:pathData="M14,14v6l5.19,-3z"/>
 
   </group>
 </vector>
