@@ -158,9 +158,18 @@
     <string name="headline_stats_session_ratings_subheading">Your session ratings</string>
     <string name="in_month">In %1$s</string>
     <string name="donations_title">Support us!</string>
-    <string name="donations_text">If you are enjoying the app and would like to support us, we would be very thankful for a small donation.\n This will help us in developing awesome new features like\n &#8226; Sharable sessions\n &#8226; Integrated tuner\n &#8226; Special layout for tablets\n &#8226; And many more!</string>
+    <string name="donations_text">If you are enjoying the app and would like to support us, we would be very thankful for a small donation.\nThis will help us developing awesome new features like:\n
+        <ul>
+        <li>Sharable sessions</li>
+        <li>Integrated tuner</li>
+        <li>Special layout for tablets</li>
+        <li>And many more!</li>
+        </ul>
+    </string>
     <string name="help_title">Help</string>
     <string name="help_replay_intro">Replay app introduction</string>
     <string name="help_tips_title">Tips and tricks</string>
     <string name="help_tips_text">Have you tried…\n &#8226; Swiping sections during an active session to delete them,\n&#8226; Long-clicking on sessions, goals or library items to select and delete them? </string>
+    <string name="settings">Settings</string>
+    <string name="export">Export app data</string>
 </resources>
