@@ -260,7 +260,8 @@
         android:layout_height="50dp"
         android:layout_gravity="top|left"
         android:background="?selectableItemBackgroundBorderless"
-        android:src="@drawable/ic_arrow_down" />
+        android:src="@drawable/ic_arrow_down"
+        android:tint="?attr/colorOnSurfaceLowerContrast" />
 
     <ImageButton
         android:id="@+id/btn_discard"
@@ -297,11 +298,12 @@
 
 
     <androidx.coordinatorlayout.widget.CoordinatorLayout
+        android:id="@+id/bottom_sheet_container"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_gravity="bottom"
         android:layout_marginBottom="56dp"
-        android:animateLayoutChanges="true"
+        android:visibility="visible"
         tools:visibility="visible">
 
         <include layout="@layout/bottom_sheet_dialog_metronome"
