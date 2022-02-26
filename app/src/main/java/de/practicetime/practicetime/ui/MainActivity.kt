@@ -61,19 +61,19 @@ class MainActivity : AppCompatActivity() {
             if (prefs.getBoolean(PracticeTime.PREFERENCES_KEY_FIRSTRUN, true)) {
 
                 // populate the category table on first run
-                listOf(
-                    Category(name="Die Schöpfung", colorIndex=0),
-                    Category(name="Beethoven Septett", colorIndex=1),
-                    Category(name="Schostakowitsch 9.", colorIndex=2),
-                    Category(name="Trauermarsch c-Moll", colorIndex=3),
-                    Category(name="Adagio", colorIndex=4),
-                    Category(name="Eine kleine Gigue", colorIndex=5),
-                    Category(name="Andantino", colorIndex=6),
-                    Category(name="Klaviersonate", colorIndex=7),
-                    Category(name="Trauermarsch", colorIndex=8),
-                ).forEach {
-                    PracticeTime.categoryDao.insert(it)
-                }
+//                listOf(
+//                    Category(name="Die Schöpfung", colorIndex=0),
+//                    Category(name="Beethoven Septett", colorIndex=1),
+//                    Category(name="Schostakowitsch 9.", colorIndex=2),
+//                    Category(name="Trauermarsch c-Moll", colorIndex=3),
+//                    Category(name="Adagio", colorIndex=4),
+//                    Category(name="Eine kleine Gigue", colorIndex=5),
+//                    Category(name="Andantino", colorIndex=6),
+//                    Category(name="Klaviersonate", colorIndex=7),
+//                    Category(name="Trauermarsch", colorIndex=8),
+//                ).forEach {
+//                    PracticeTime.categoryDao.insert(it)
+//                }
 
                 prefs.edit().putBoolean(PracticeTime.PREFERENCES_KEY_FIRSTRUN, false).apply()
             }
