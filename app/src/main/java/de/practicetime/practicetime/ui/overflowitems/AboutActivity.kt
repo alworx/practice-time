@@ -2,7 +2,6 @@ package de.practicetime.practicetime.ui.overflowitems
 
 import android.content.Intent
 import android.os.Bundle
-import android.util.Log
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -16,7 +15,6 @@ import de.practicetime.practicetime.utils.SECONDS_PER_HOUR
 import de.practicetime.practicetime.utils.getStartOfDay
 import de.practicetime.practicetime.utils.getStartOfWeek
 import kotlinx.coroutines.launch
-import java.lang.Math.abs
 import kotlin.math.roundToInt
 import kotlin.random.Random
 
@@ -72,15 +70,15 @@ class AboutActivity : AppCompatActivity() {
                     ), GoalInstance(
                         goalDescriptionId = 1,
                         startTimestamp = getStartOfWeek(-4).toEpochSecond(),
-                        periodInSeconds = SECONDS_PER_DAY * 7,
-                        target = SECONDS_PER_HOUR,
+                        periodInSeconds = SECONDS_PER_DAY,
+                        target = (SECONDS_PER_HOUR * .75).roundToInt(),
                     )),
                     Pair(GoalDescriptionWithCategories(
                         description = GoalDescription(
                             type = GoalType.CATEGORY_SPECIFIC,
                             repeat = true,
-                            periodInPeriodUnits = 1,
-                            periodUnit = GoalPeriodUnit.WEEK,
+                            periodInPeriodUnits = 3,
+                            periodUnit = GoalPeriodUnit.DAY,
                         ),
                         listOf(
                             dummyCategories[2]
@@ -88,7 +86,7 @@ class AboutActivity : AppCompatActivity() {
                     ), GoalInstance(
                         goalDescriptionId = 2,
                         startTimestamp = getStartOfWeek(-3).toEpochSecond(),
-                        periodInSeconds = SECONDS_PER_DAY * 7,
+                        periodInSeconds = SECONDS_PER_DAY * 3,
                         target = (SECONDS_PER_HOUR * 2f).roundToInt(),
                     )),
                 ).forEach { (description, instance) ->
@@ -126,7 +124,7 @@ class AboutActivity : AppCompatActivity() {
                                 dummyCategories.forEach { cat ->
                                     if(categoryActiveRanges[(cat.id-1).toInt() % categoryActiveRanges.size].contains(day)){
                                         val duration = when (cat.name) {
-                                            "B-Dur" -> 60 * drawNumberBetween(5, 10)
+                                            "B-Dur" -> 60 * drawNumberBetween(10, 15)
                                             "Czerny Etude Nr.2" -> 60 * drawNumberBetween(15, 25)
                                             "Mozart" -> 60 * drawNumberBetween(25, 45)
                                             else -> 0
