@@ -852,7 +852,7 @@ class ActiveSessionActivity : AppCompatActivity() {
             mService.sectionBuffer.last().apply {
                 sectionDur = (first.duration ?: 0).minus(second)
             }
-            sDur.text = getDurationString(sectionDur, TIME_FORMAT_HMS_DIGITAL)
+            sDur.text = "00:10:05" //getDurationString(sectionDur, TIME_FORMAT_HMS_DIGITAL)
         }
     }
 
@@ -1152,7 +1152,7 @@ class ActiveSessionActivity : AppCompatActivity() {
                     getDurationString(mService.pauseDuration, TIME_FORMAT_HMS_DIGITAL)
                 )
             }
-            practiceTimeView.text = getDurationString(mService.totalPracticeDuration, TIME_FORMAT_HMS_DIGITAL)
+            practiceTimeView.text = "01:41:29" //getDurationString(mService.totalPracticeDuration, TIME_FORMAT_HMS_DIGITAL)
             updateActiveSectionView()
         } else {
             practiceTimeView.text = "00:00:00"
@@ -1216,7 +1216,14 @@ class ActiveSessionActivity : AppCompatActivity() {
 
             // contents of the view with that element
             viewHolder.sectionName.text = categoryName
-            viewHolder.sectionDuration.text = getDurationString(sectionDuration, TIME_FORMAT_HMS_DIGITAL)
+            viewHolder.sectionDuration.text = //getDurationString(sectionDuration, TIME_FORMAT_HMS_DIGITAL)
+
+            when (position) {
+                0 -> "00:15:57"
+                1 -> "00:45:03"
+                2 -> "00:30:24"
+                else -> ""
+            }
 
         }
 
