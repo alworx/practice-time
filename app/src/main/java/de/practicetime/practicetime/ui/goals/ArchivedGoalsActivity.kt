@@ -23,12 +23,14 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
 import de.practicetime.practicetime.PracticeTime
 import de.practicetime.practicetime.R
-import de.practicetime.practicetime.database.entities.GoalInstanceWithDescriptionWithLibraryItems
+import de.practicetime.practicetime.database.GoalInstanceWithDescriptionWithLibraryItems
+import de.practicetime.practicetime.database.PTDatabase
 import de.practicetime.practicetime.database.entities.GoalPeriodUnit
 import de.practicetime.practicetime.database.entities.GoalType
 import de.practicetime.practicetime.utils.TIME_FORMAT_HUMAN_PRETTY
 import de.practicetime.practicetime.utils.getDurationString
 import kotlinx.coroutines.launch
+import java.util.*
 
 class ArchivedGoalsActivity : AppCompatActivity() {
 
@@ -54,10 +56,10 @@ class ArchivedGoalsActivity : AppCompatActivity() {
         )
 
         lifecycleScope.launch {
-            PracticeTime.goalDescriptionDao.getArchivedWithLibraryItems().forEach {
+            PTDatabase.getInstance(applicationContext).goalDescriptionDao.getArchivedWithLibraryItems().forEach {
                 adapterData.add(
                     GoalInstanceWithDescriptionWithLibraryItems(
-                        instance = PracticeTime.goalInstanceDao.getLatest(it.description.id),
+                        instance = PTDatabase.getInstance(applicationContext).goalInstanceDao.getLatest(it.description.id),
                         description = it
                     )
                 )
@@ -85,27 +87,27 @@ class ArchivedGoalsActivity : AppCompatActivity() {
                 lifecycleScope.launch {
                     libraryItem?.let {
                         it.archived = false
-                        PracticeTime.libraryItemDao.update(libraryItem)
+                        PTDatabase.getInstance(applicationContext).libraryItemDao.update(libraryItem)
                     }
-                    PracticeTime.goalDescriptionDao.unarchive(archivedGoal)
+                    PTDatabase.getInstance(applicationContext).goalDescriptionDao.unarchive(archivedGoal)
                 }
                 adapterData.remove(adapterData[position])
                 archivedGoalsAdapter.notifyItemRemoved(position)
                 Toast.makeText(context, R.string.archivedGoalsUnarchiveGoalToast, Toast.LENGTH_SHORT).show()
                 dialog.dismiss()
             }
-            setNegativeButton(R.string.dialogCancel) { dialog, _ ->
+            setNegativeButton(R.string.dialogDismiss) { dialog, _ ->
                 dialog.cancel()
             }
         }.create().show()
     }
 
-    private fun deleteHandler(goalDescriptionId: Long, position: Int) {
+    private fun deleteHandler(goalDescriptionId: UUID, position: Int) {
         AlertDialog.Builder(this).apply {
             setMessage(R.string.archivedGoalsConfirmDelete)
             setPositiveButton(R.string.archivedGoalsDelete) { dialog, _ ->
                 lifecycleScope.launch {
-                    PracticeTime.goalDescriptionDao.deleteGoal(goalDescriptionId)
+                    PTDatabase.getInstance(applicationContext).goalDescriptionDao.getAndDelete(goalDescriptionId)
                 }
                 adapterData.remove(adapterData[position])
                 archivedGoalsAdapter.notifyItemRemoved(position)
@@ -114,7 +116,7 @@ class ArchivedGoalsActivity : AppCompatActivity() {
                 ), Toast.LENGTH_SHORT).show()
                 dialog.dismiss()
             }
-            setNegativeButton(R.string.dialogCancel) { dialog, _ ->
+            setNegativeButton(R.string.dialogDismiss) { dialog, _ ->
                 dialog.cancel()
             }
         }.create().show()
@@ -127,7 +129,7 @@ class ArchivedGoalsActivity : AppCompatActivity() {
             archivedGoal: GoalInstanceWithDescriptionWithLibraryItems,
             position: Int
         ) -> Unit,
-        private val deleteHandler: (descriptionId: Long, position: Int) -> Unit,
+        private val deleteHandler: (descriptionId: UUID, position: Int) -> Unit,
     ) : RecyclerView.Adapter<ArchivedGoalsAdapter.ViewHolder>() {
 
         override fun onCreateViewHolder(

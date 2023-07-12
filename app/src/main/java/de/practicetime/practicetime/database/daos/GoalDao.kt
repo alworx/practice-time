@@ -1,5 +1,11 @@
 /*
- * This software is licensed under the MIT license
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * Copyright (c) 2022 Matthias Emde
+ *
+ * Parts of this software are licensed under the MIT license
  *
  * Copyright (c) 2022, Javier Carbone, author Matthias Emde
  */
@@ -8,15 +14,18 @@ package de.practicetime.practicetime.database.daos
 
 import android.util.Log
 import androidx.room.*
-import de.practicetime.practicetime.PracticeTime
-import de.practicetime.practicetime.database.BaseDao
+import de.practicetime.practicetime.database.*
 import de.practicetime.practicetime.database.entities.*
 import de.practicetime.practicetime.utils.getCurrTimestamp
+import kotlinx.coroutines.flow.Flow
 import java.util.*
 
 @Dao
-abstract class GoalDescriptionDao : BaseDao<GoalDescription>(
-    tableName = "goal_description"
+abstract class GoalDescriptionDao(
+    private val database : PTDatabase
+) : BaseDao<GoalDescription>(
+    tableName = "goal_description",
+    database = database
 ) {
 
     /**
@@ -29,52 +38,29 @@ abstract class GoalDescriptionDao : BaseDao<GoalDescription>(
     ): Long
 
     @Transaction
-    open suspend fun insertAndGetGoalDescriptionWithLibraryItems(
-        goalDescriptionWithLibraryItems: GoalDescriptionWithLibraryItems
-    ) : GoalDescriptionWithLibraryItems? {
-        return insertAndGet(
-            goalDescriptionWithLibraryItems.description
-        )?.let { description ->
-
-            // for every library item linked with the goal...
-            for (libraryItem in goalDescriptionWithLibraryItems.libraryItems) {
-                // insert a row in the cross reference table
-                insertGoalDescriptionLibraryItemCrossRef(
-                    GoalDescriptionLibraryItemCrossRef(
-                        description.id,
-                        libraryItem.id,
-                    )
-                )
-            }
-            return GoalDescriptionWithLibraryItems(
-                description,
-                goalDescriptionWithLibraryItems.libraryItems
-            )
-        }
-    }
-
-    @Transaction
-    open suspend fun insertGoal(
+    open suspend fun insert(
         goalDescriptionWithLibraryItems: GoalDescriptionWithLibraryItems,
         target: Int,
-    ) : GoalInstanceWithDescriptionWithLibraryItems? {
+    ) : GoalInstance? {
 
-        return insertAndGetGoalDescriptionWithLibraryItems(
-            goalDescriptionWithLibraryItems
-        )?.let { newGoalDescriptionWithLibraryItems ->
-            // Create the first instance of the newly created goal description
-            PracticeTime.goalInstanceDao.insertUpdateAndGet(
-                newGoalDescriptionWithLibraryItems.description.createInstance(
-                    Calendar.getInstance(),
-                    target
+        // Create the first instance of the newly created goal description
+        val firstGoalInstance = goalDescriptionWithLibraryItems.description.createInstance(
+            Calendar.getInstance(),
+            target
+        )
+
+        insert(goalDescriptionWithLibraryItems.description)
+        database.goalInstanceDao.insert(firstGoalInstance)
+        goalDescriptionWithLibraryItems.libraryItems.forEach { libraryItem ->
+            insertGoalDescriptionLibraryItemCrossRef(
+                GoalDescriptionLibraryItemCrossRef(
+                    goalDescriptionId = goalDescriptionWithLibraryItems.description.id,
+                    libraryItemId = libraryItem.id
                 )
-            )?.let { newGoalInstance ->
-                GoalInstanceWithDescriptionWithLibraryItems(
-                    newGoalInstance,
-                    newGoalDescriptionWithLibraryItems
-                )
-            }
+            )
         }
+
+        return firstGoalInstance
     }
 
     /**
@@ -91,51 +77,17 @@ abstract class GoalDescriptionDao : BaseDao<GoalDescription>(
         update(goalDescriptions)
     }
 
-    suspend fun getAndArchive(goalDescriptionIds: List<Long>) {
+    suspend fun getAndArchive(goalDescriptionIds: List<UUID>) {
         archive(get(goalDescriptionIds))
     }
-
-    @Transaction
-    open suspend fun deleteGoal(goalDescriptionId: Long) {
-        // to delete a goal, first fetch all instances from the database and delete them
-        PracticeTime.goalInstanceDao.apply {
-            get(
-                goalDescriptionId = goalDescriptionId,
-                from = 0L
-            ).forEach {
-                delete(it)
-            }
-        }
-        // we also need to remove all entries in the cross reference table
-        deleteGoalDescriptionLibraryItemCrossRefs(
-            getGoalDescriptionLibraryItemCrossRefs(goalDescriptionId)
-        )
-        // finally, we can delete the description
-        getAndDelete(goalDescriptionId)
-    }
-
-    suspend fun deleteGoals(goalDescriptionIds: List<Long>) {
-        goalDescriptionIds.forEach { deleteGoal(it) }
-    }
-
-    @Delete
-    abstract suspend fun deleteGoalDescriptionLibraryItemCrossRef(
-        crossRef: GoalDescriptionLibraryItemCrossRef
-    )
-
-    @Delete
-    abstract suspend fun deleteGoalDescriptionLibraryItemCrossRefs(
-        crossRefs: List<GoalDescriptionLibraryItemCrossRef>
-    )
-
 
     /**
      * @Update
      */
 
     @Transaction
-    open suspend fun updateTarget(goalDescriptionId: Long, newTarget: Int) {
-        PracticeTime.goalInstanceDao.apply {
+    open suspend fun updateTarget(goalDescriptionId: UUID, newTarget: Int) {
+        database.goalInstanceDao.apply {
             get(
                 goalDescriptionId = goalDescriptionId,
                 from = getCurrTimestamp(),
@@ -155,11 +107,11 @@ abstract class GoalDescriptionDao : BaseDao<GoalDescription>(
         update(description)
         if(instance.startTimestamp + instance.periodInSeconds > getCurrTimestamp()) {
             instance.renewed = false
-            PracticeTime.goalInstanceDao.update(instance)
+            database.goalInstanceDao.update(instance)
         } else {
-            PracticeTime.goalInstanceDao.insertUpdateAndGet(
-                description.createInstance(Calendar.getInstance(), instance.target)
-            )
+//            database.goalInstanceDao.insertWithProgress(
+//                description.createInstance(Calendar.getInstance(), instance.target)
+//            )
         }
     }
 
@@ -173,13 +125,13 @@ abstract class GoalDescriptionDao : BaseDao<GoalDescription>(
         "WHERE goal_description_id=:goalDescriptionId"
     )
     abstract suspend fun getGoalDescriptionLibraryItemCrossRefs(
-        goalDescriptionId: Long
+        goalDescriptionId: UUID
     ) : List<GoalDescriptionLibraryItemCrossRef>
 
 
     @Transaction
     @Query("SELECT * FROM goal_description WHERE id=:goalDescriptionId")
-    abstract suspend fun getWithLibraryItems(goalDescriptionId: Long)
+    abstract suspend fun getWithLibraryItems(goalDescriptionId: UUID)
         : GoalDescriptionWithLibraryItems?
 
     @Transaction
@@ -210,11 +162,11 @@ abstract class GoalDescriptionDao : BaseDao<GoalDescription>(
     open suspend fun computeGoalProgressForSession(
         session: SessionWithSectionsWithLibraryItemsWithGoalDescriptions,
         checkArchived: Boolean = false,
-    ) : Map<Long, Int> {
+    ) : Map<UUID, Int> {
         var totalSessionDuration = 0
 
         // goalProgress maps the goalDescription-id to its progress
-        val goalProgress = mutableMapOf<Long, Int>()
+        val goalProgress = mutableMapOf<UUID, Int>()
 
         // go through all the sections in the session...
         session.sections.forEach { (section, libraryItemWithGoalDescriptions) ->
@@ -254,34 +206,34 @@ abstract class GoalDescriptionDao : BaseDao<GoalDescription>(
  */
 
 @Dao
-abstract class GoalInstanceDao : BaseDao<GoalInstance>(tableName = "goal_instance") {
+abstract class GoalInstanceDao(
+    private val database : PTDatabase
+) : BaseDao<GoalInstance>(
+    tableName = "goal_instance",
+    database = database
+) {
 
     /**
      * @Insert
      */
 
-    @Transaction
-    open suspend fun insertUpdateAndGet(
-        goalInstance: GoalInstance
-    ) : GoalInstance? {
-        return insertAndGet(
-            goalInstance
-        )?.let { newInstance ->
-            PracticeTime.sessionDao.getSessionsContainingSectionFromTimeFrame(
-                newInstance.startTimestamp,
-                newInstance.startTimestamp + newInstance.periodInSeconds
-            ).filter { s -> s.sections.first().timestamp >= newInstance.startTimestamp }
-            .forEach { s ->
-                PracticeTime.goalDescriptionDao.computeGoalProgressForSession(
-                    PracticeTime.sessionDao.getWithSectionsWithLibraryItemsWithGoals(s.session.id)
-                ).also { progress ->
-                    newInstance.progress += progress[newInstance.goalDescriptionId] ?: 0
-                }
-            }
-            update(newInstance)
-            newInstance
-        }
-    }
+//    @Transaction
+//    open suspend fun insertWithProgress(
+//        goalInstance: GoalInstance
+//    ){
+//        database.sessionDao.getSessionsContainingSectionFromTimeFrame(
+//            goalInstance.startTimestamp,
+//            goalInstance.startTimestamp + goalInstance.periodInSeconds
+//        ).filter { s -> s.sections.first().timestamp >= goalInstance.startTimestamp }
+//        .forEach { s ->
+//            database.goalDescriptionDao.computeGoalProgressForSession(
+//                database.sessionDao.getWithSectionsWithLibraryItemsWithGoals(s.session.id)
+//            ).also { progress ->
+//                goalInstance.progress += progress[goalInstance.goalDescriptionId] ?: 0
+//            }
+//        }
+//        insert(goalInstance)
+//    }
 
 
     /**
@@ -289,7 +241,7 @@ abstract class GoalInstanceDao : BaseDao<GoalInstance>(tableName = "goal_instanc
      */
 
     @Transaction
-    open suspend fun renewGoalInstance(id: Long) {
+    open suspend fun renewGoalInstance(id: UUID) {
         get(id)?.also { g ->
             g.renewed = true
             update(g)
@@ -321,7 +273,7 @@ abstract class GoalInstanceDao : BaseDao<GoalInstance>(tableName = "goal_instanc
         ")"
     )
     abstract suspend fun get(
-        goalDescriptionIds: List<Long>,
+        goalDescriptionIds: List<UUID>,
         from: Long = getCurrTimestamp(),
         to: Long = Long.MAX_VALUE,
         inclusiveFrom: Boolean = true,
@@ -329,7 +281,7 @@ abstract class GoalInstanceDao : BaseDao<GoalInstance>(tableName = "goal_instanc
     ): List<GoalInstance>
 
     suspend fun get(
-        goalDescriptionId: Long,
+        goalDescriptionId: UUID,
         from: Long = getCurrTimestamp(),
         to: Long = Long.MAX_VALUE,
         inclusiveFrom: Boolean = true,
@@ -391,7 +343,7 @@ abstract class GoalInstanceDao : BaseDao<GoalInstance>(tableName = "goal_instanc
                 ")"
     )
     abstract suspend fun getWithDescriptionWithLibraryItems(
-        goalDescriptionId: Long,
+        goalDescriptionId: UUID,
         from: Long = getCurrTimestamp(),
         to: Long = Long.MAX_VALUE,
         inclusiveFrom: Boolean = true,
@@ -418,10 +370,10 @@ abstract class GoalInstanceDao : BaseDao<GoalInstance>(tableName = "goal_instanc
             "archived=0 OR :checkArchived" +
         ")"
     )
-    abstract suspend fun getWithDescriptionsWithLibraryItems(
+    abstract fun getWithDescriptionsWithLibraryItems(
         checkArchived : Boolean = false,
         now : Long = getCurrTimestamp(),
-    ) : List<GoalInstanceWithDescriptionWithLibraryItems>
+    ) : Flow<List<GoalInstanceWithDescriptionWithLibraryItems>>
 
     @Transaction
     @Query(
@@ -435,7 +387,7 @@ abstract class GoalInstanceDao : BaseDao<GoalInstance>(tableName = "goal_instanc
         ")"
     )
     abstract suspend fun getWithDescriptionsWithLibraryItems(
-        goalDescriptionIds: List<Long>,
+        goalDescriptionIds: List<UUID>,
         checkArchived : Boolean = false,
         now : Long = getCurrTimestamp(),
     ) : List<GoalInstanceWithDescriptionWithLibraryItems>
@@ -449,7 +401,6 @@ abstract class GoalInstanceDao : BaseDao<GoalInstance>(tableName = "goal_instanc
         ")"
     )
     abstract suspend fun getLatest(
-        goalDescriptionId: Long
+        goalDescriptionId: UUID
     ): GoalInstance
-
 }

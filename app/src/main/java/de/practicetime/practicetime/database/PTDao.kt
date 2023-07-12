@@ -16,10 +16,14 @@ import android.util.Log
 import androidx.room.*
 import androidx.sqlite.db.SimpleSQLiteQuery
 import androidx.sqlite.db.SupportSQLiteQuery
+import de.practicetime.practicetime.PracticeTime.Companion.ioThread
 import de.practicetime.practicetime.utils.getCurrTimestamp
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.runBlocking
+import java.util.*
 
 abstract class BaseModel (
-    @PrimaryKey(autoGenerate = true) var id: Long = 0,
+    @PrimaryKey var id: UUID = UUID.randomUUID(),
 ) {
     override fun toString(): String {
         return "\nPretty print of ${this.javaClass.simpleName} entity:\n" +
@@ -32,8 +36,8 @@ abstract class BaseModel (
  */
 
 abstract class ModelWithTimestamps (
-    @ColumnInfo(name="created_at", defaultValue = "0") var createdAt: Long = getCurrTimestamp(),
-    @ColumnInfo(name="modified_at", defaultValue = "0") var modifiedAt: Long = getCurrTimestamp(),
+    @ColumnInfo(name="created_at", defaultValue = "0") var createdAt: Long = 0,
+    @ColumnInfo(name="modified_at", defaultValue = "0") var modifiedAt: Long = 0,
 ) : BaseModel() {
     override fun toString(): String {
         return super.toString() +
@@ -46,32 +50,38 @@ abstract class ModelWithTimestamps (
  * @Dao Base dao
  */
 
-abstract class BaseDao<T>(
-    private val tableName: String
-) where T : BaseModel {
+abstract class BaseDao<T : BaseModel>(
+    private val tableName: String,
+    private val database: PTDatabase
+) {
 
     /**
      * @Insert queries
      */
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
-    abstract suspend fun insert(row: T) : Long
+    protected abstract suspend fun directInsert(row: T)
+
+    suspend fun insert(row: T) {
+        if(row is ModelWithTimestamps) {
+            row.createdAt = getCurrTimestamp()
+            row.modifiedAt = getCurrTimestamp()
+        }
+        directInsert(row)
+    }
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
-    abstract suspend fun insert(rows: List<T>) : List<Long>
+    protected abstract suspend fun directInsert(rows: List<T>)
 
-    @Transaction
-    open suspend fun insertAndGet(row: T) : T? {
-        val newId = insert(row)
-        return get(newId)
+    suspend fun insert(rows: List<T>) {
+        rows.forEach {
+            if (it is ModelWithTimestamps) {
+                it.createdAt = getCurrTimestamp()
+                it.modifiedAt = getCurrTimestamp()
+            }
+        }
+        directInsert(rows)
     }
-
-    @Transaction
-    open suspend fun insertAndGet(rows: List<T>) : List<T> {
-        val newIds = insert(rows)
-        return get(newIds)
-    }
-
 
     /**
      * @Delete queries
@@ -83,12 +93,12 @@ abstract class BaseDao<T>(
     @Delete
     abstract suspend fun delete(rows: List<T>)
 
-    suspend fun getAndDelete(id: Long) {
+    suspend fun getAndDelete(id: UUID) {
         get(id)?.let { delete(it) }
             ?: Log.e("BASE_DAO", "id: $id not found while trying to delete")
     }
 
-    suspend fun getAndDelete(ids: List<Long>) {
+    suspend fun getAndDelete(ids: List<UUID>) {
         delete(get(ids))
     }
 
@@ -111,8 +121,10 @@ abstract class BaseDao<T>(
     protected abstract suspend fun directUpdate(rows: List<T>)
 
     suspend fun update(rows: List<T>) {
-        if(rows.firstOrNull() is ModelWithTimestamps) {
-            rows.forEach { (it as ModelWithTimestamps).modifiedAt = getCurrTimestamp() }
+        rows.forEach {
+            if (it is ModelWithTimestamps) {
+                it.modifiedAt = getCurrTimestamp()
+            }
         }
         directUpdate(rows)
     }
@@ -123,27 +135,55 @@ abstract class BaseDao<T>(
      */
 
     @RawQuery
-    protected abstract suspend fun getSingle(query: SupportSQLiteQuery): T?
+    protected abstract suspend fun get(query: SupportSQLiteQuery): List<T>
 
-    open suspend fun get(id: Long): T? {
-        return getSingle(
-            SimpleSQLiteQuery("SELECT * FROM $tableName WHERE id=$id")
+    open suspend fun get(id: UUID) = get(listOf(id)).firstOrNull()
+
+    open suspend fun get(ids: List<UUID>) = get(
+        SimpleSQLiteQuery(
+            "SELECT * FROM $tableName WHERE id IN (${ids.joinToString(separator = ",") { "?" }});",
+            ids.map { UUIDConverter().toByte(it) }.toTypedArray()
         )
-    }
+    )
 
-    @RawQuery
-    protected abstract suspend fun getMultiple(query: SupportSQLiteQuery): List<T>
+    open suspend fun getAll() = get(
+        SimpleSQLiteQuery("SELECT * FROM $tableName;")
+    )
 
-    open suspend fun get(ids: List<Long>): List<T> {
-        return getMultiple(
-            SimpleSQLiteQuery("SELECT * FROM $tableName WHERE id IN (${ids.joinToString(",")})")
-        )
-    }
+    /**
+     * Flow getters
+     */
 
-    @RawQuery
-    protected abstract suspend fun getAll(query: SupportSQLiteQuery): List<T>
+    fun getAsFlow(id: UUID): Flow<T?> = getAsFlow(listOf(id)).map { it.firstOrNull() }
+    fun getAsFlow(ids: List<UUID>): Flow<List<T>> = subscribeTo { get(ids) }
+    fun getAllAsFlow(): Flow<List<T>> = subscribeTo { getAll() }
 
-    open suspend fun getAll(): List<T> {
-        return getAll(SimpleSQLiteQuery("SELECT * FROM $tableName"))
+    private fun subscribeTo(query: suspend () -> List<T>): Flow<List<T>> {
+        val notify = MutableSharedFlow<String>()
+
+        var observer: InvalidationTracker.Observer? = null
+
+        return flow {
+            observer = observer ?: (object : InvalidationTracker.Observer(tableName) {
+                override fun onInvalidated(tables: Set<String>) {
+                    ioThread { runBlocking {
+                        notify.emit("invalidated")
+                    }}
+                }
+            }.also {
+                database.invalidationTracker.addObserver(it)
+            })
+
+            // emit the initial value
+            emit(query())
+
+            notify.collect {
+                emit(query())
+            }
+        }.onCompletion {
+            observer?.let {
+                database.invalidationTracker.removeObserver(it)
+            }
+        }
     }
 }

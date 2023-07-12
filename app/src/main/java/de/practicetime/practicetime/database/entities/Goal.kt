@@ -1,5 +1,11 @@
 /*
- * This software is licensed under the MIT license
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * Copyright (c) 2022 Matthias Emde
+ *
+ * Parts of this software are licensed under the MIT license
  *
  * Copyright (c) 2022, Javier Carbone, author Matthias Emde
  */
@@ -9,13 +15,23 @@ package de.practicetime.practicetime.database.entities
 import android.util.Log
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.ForeignKey
 import de.practicetime.practicetime.database.ModelWithTimestamps
 import java.util.*
 
 // shows, whether a goal will count all sections
 // or only the one from specific libraryItems
 enum class GoalType {
-    NON_SPECIFIC, ITEM_SPECIFIC
+    NON_SPECIFIC, ITEM_SPECIFIC;
+
+    companion object {
+        fun toString(type: GoalType): String {
+            return when (type) {
+                NON_SPECIFIC -> "All items"
+                ITEM_SPECIFIC -> "Specific item"
+            }
+        }
+    }
 }
 
 // shows, whether a goal will track practice time
@@ -25,12 +41,32 @@ enum class GoalProgressType {
 }
 
 enum class GoalPeriodUnit {
-    DAY, WEEK, MONTH
+    DAY, WEEK, MONTH;
+
+    companion object {
+        fun toString(periodUnit: GoalPeriodUnit): String {
+            return when (periodUnit) {
+                DAY -> "Day"
+                WEEK -> "Week"
+                MONTH -> "Month"
+            }
+        }
+    }
 }
 
-@Entity(tableName = "goal_instance")
+@Entity(
+    tableName = "goal_instance",
+    foreignKeys = [
+        ForeignKey(
+            entity = GoalDescription::class,
+            parentColumns = ["id"],
+            childColumns = ["goal_description_id"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ]
+)
 data class GoalInstance(
-    @ColumnInfo(name="goal_description_id") val goalDescriptionId: Long,
+    @ColumnInfo(name="goal_description_id", index = true) val goalDescriptionId: UUID,
     @ColumnInfo(name="start_timestamp") val startTimestamp: Long,
     @ColumnInfo(name="period_in_seconds") val periodInSeconds: Int,
     @ColumnInfo(name="target") var target: Int,
@@ -47,8 +83,8 @@ class GoalDescription (
     @ColumnInfo(name="period_unit") val periodUnit: GoalPeriodUnit,
     @ColumnInfo(name="progress_type") val progressType: GoalProgressType = GoalProgressType.TIME,
     @ColumnInfo(name="archived") var archived: Boolean = false,
-    @ColumnInfo(name="profile_id", index = true) val profileId: Int = 0,
-    @ColumnInfo(name="order", defaultValue = "0") var order: Int = 0,
+//    @ColumnInfo(name="profile_id", index = true) val profileId: UUID? = null,
+    @ColumnInfo(name="order", defaultValue = "0") var order: Int? = null,
     ) : ModelWithTimestamps() {
 
     // create a new instance of this goal, storing the target and progress during a single period

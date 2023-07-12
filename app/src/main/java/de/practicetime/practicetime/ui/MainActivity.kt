@@ -12,11 +12,9 @@
 
 package de.practicetime.practicetime.ui
 
-import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatActivity
@@ -28,11 +26,13 @@ import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -40,11 +40,10 @@ import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import androidx.core.content.ContextCompat.startActivity
 import androidx.core.view.WindowCompat
-import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -55,21 +54,16 @@ import com.google.android.material.composethemeadapter3.Mdc3Theme
 import de.practicetime.practicetime.BuildConfig
 import de.practicetime.practicetime.PracticeTime
 import de.practicetime.practicetime.R
-import de.practicetime.practicetime.database.entities.LibraryFolder
-import de.practicetime.practicetime.database.entities.LibraryItem
 import de.practicetime.practicetime.getActivity
-import de.practicetime.practicetime.shared.ThemeSelections
-import de.practicetime.practicetime.ui.goals.GoalsFragmentHolder
+import de.practicetime.practicetime.ui.goals.Goals
 import de.practicetime.practicetime.ui.goals.ProgressUpdate
-import de.practicetime.practicetime.ui.intro.AppIntroActivity
 import de.practicetime.practicetime.ui.library.Library
 import de.practicetime.practicetime.ui.sessionlist.SessionListFragmentHolder
 import de.practicetime.practicetime.ui.statistics.StatisticsFragmentHolder
 import de.practicetime.practicetime.utils.ExportDatabaseContract
 import de.practicetime.practicetime.utils.ExportImportDialog
 import de.practicetime.practicetime.utils.ImportDatabaseContract
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import de.practicetime.practicetime.viewmodel.MainViewModel
 
 
 sealed class Screen(
@@ -136,7 +130,6 @@ class MainActivity : AppCompatActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
         if (BuildConfig.DEBUG) {
-            createDatabaseFirstRun()
 //            launchAppIntroFirstRun()
         }
 
@@ -154,27 +147,15 @@ class MainActivity : AppCompatActivity() {
         }
 
         setContent {
-            val mainState = rememberMainState()
 
-            LaunchedEffect(reloadDatabase.value) {
-                mainState.loadDatabase()
-            }
-
-            mainState.setTheme(try {
-                PracticeTime.prefs.getInt(
-                    PracticeTime.PREFERENCES_KEY_THEME,
-                    ThemeSelections.SYSTEM.ordinal
-                ).let { ordinal ->
-                    ThemeSelections.values().first { it.ordinal == ordinal }
-                }
-            } catch (ex: Exception) {
-                ThemeSelections.SYSTEM
-            })
+            val mainViewModel: MainViewModel = viewModel()
+            val navController = rememberAnimatedNavController()
 
             Mdc3Theme {
+                Log.d("MainActivity", "${LocalViewModelStoreOwner.current}")
                 Scaffold(
                     bottomBar = {
-                        val navBackStackEntry by mainState.navController.currentBackStackEntryAsState()
+                        val navBackStackEntry by navController.currentBackStackEntryAsState()
                         val currentDestination = navBackStackEntry?.destination
                         val showNavigationBar = currentDestination?.hierarchy?.any { dest ->
                             navItems.any { it.route == dest.route }
@@ -217,11 +198,11 @@ class MainActivity : AppCompatActivity() {
                                             onClick = {
                                                 if (!selected) activePainter =
                                                     (activePainter + 1) % painterCount
-                                                mainState.navController.navigate(screen.route) {
+                                                navController.navigate(screen.route) {
                                                     // Pop up to the start destination of the graph to
                                                     // avoid building up a large stack of destinations
                                                     // on the back stack as users select items
-                                                    popUpTo(mainState.navController.graph.findStartDestination().id) {
+                                                    popUpTo(navController.graph.findStartDestination().id) {
                                                         saveState = true
                                                     }
                                                     // Avoid multiple copies of the same destination when
@@ -240,7 +221,7 @@ class MainActivity : AppCompatActivity() {
                                     modifier = Modifier
                                         .matchParentSize()
                                         .zIndex(1f),
-                                    visible = mainState.showNavBarScrim.value,
+                                    visible = mainViewModel.showNavBarScrim.value,
                                     enter = fadeIn(),
                                     exit = fadeOut()
                                 ) {
@@ -254,7 +235,7 @@ class MainActivity : AppCompatActivity() {
                 ) { innerPadding ->
                     val animationDuration = 400
                     AnimatedNavHost(
-                        mainState.navController,
+                        navController,
                         startDestination = Screen.Sessions.route,
                         Modifier.padding(bottom = innerPadding.calculateBottomPadding()),
                         enterTransition = {
@@ -282,32 +263,32 @@ class MainActivity : AppCompatActivity() {
                                     fadeOut(tween(0))
                                 } else null
                             }
-                        ) { SessionListFragmentHolder(mainState, getActivity()) }
+                        ) { SessionListFragmentHolder(mainViewModel, getActivity()) }
                         composable(
                             route = Screen.Goals.route,
-                        ) { GoalsFragmentHolder(mainState) }
+                        ) { Goals(mainViewModel) }
                         composable(
                             route = Screen.Statistics.route,
                         ) { StatisticsFragmentHolder() }
                         composable(
                             route = Screen.Library.route,
-                        ) { Library (mainState) }
+                        ) { Library (mainViewModel) }
                         composable(
                             route = Screen.ProgressUpdate.route,
                             enterTransition = { fadeIn(tween(0)) }
-                        ) { ProgressUpdate(mainState) }
+                        ) { ProgressUpdate(mainViewModel) }
                     }
 
                     /** Export / Import Dialog */
                     ExportImportDialog(
-                        show = mainState.showExportImportDialog.value,
-                        onDismissHandler = { mainState.showExportImportDialog.value = false }
+                        show = mainViewModel.showExportImportDialog.value,
+                        onDismissHandler = { mainViewModel.showExportImportDialog.value = false }
                     )
 
                     // if there is a new session added to the intent, navigate to progress update
                     intent.extras?.getLong("KEY_SESSION")?.let { newSessionId ->
                         intent.removeExtra("KEY_SESSION")
-                        mainState.navigateTo(Screen.ProgressUpdate.route)
+//                        mainViewModel.navigateTo(Screen.ProgressUpdate.route)
                     }
                 }
             }
@@ -315,47 +296,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun launchAppIntroFirstRun() {
-        if (!PracticeTime.prefs.getBoolean(PracticeTime.PREFERENCES_KEY_APPINTRO_DONE, false)) {
-            val i = Intent(this, AppIntroActivity::class.java)
-            i.flags = Intent.FLAG_ACTIVITY_NO_HISTORY
-            startActivity(i)
-        }
-    }
-
-    private fun createDatabaseFirstRun() {
-        lifecycleScope.launch {
-
-            // FIRST RUN routine
-            if (PracticeTime.prefs.getBoolean(PracticeTime.PREFERENCES_KEY_FIRSTRUN, true)) {
-
-                listOf(
-                    LibraryFolder(name="Schupra"),
-                    LibraryFolder(name="Fagott"),
-                    LibraryFolder(name="Gesang"),
-                ).forEach {
-                    PracticeTime.libraryFolderDao.insert(it)
-                    delay(1000) //make sure folders have different createdAt values
-                }
-
-                // populate the libraryItem table on first run
-                listOf(
-                    LibraryItem(name="Die Schöpfung", colorIndex=0, libraryFolderId = 1),
-                    LibraryItem(name="Beethoven Septett", colorIndex=1, libraryFolderId = 1),
-                    LibraryItem(name="Schostakowitsch 9.", colorIndex=2, libraryFolderId = 2),
-                    LibraryItem(name="Trauermarsch c-Moll", colorIndex=3, libraryFolderId = 2),
-                    LibraryItem(name="Adagio", colorIndex=4, libraryFolderId = 3),
-                    LibraryItem(name="Eine kleine Gigue", colorIndex=5, libraryFolderId = 3),
-                    LibraryItem(name="Andantino", colorIndex=6),
-                    LibraryItem(name="Klaviersonate", colorIndex=7),
-                    LibraryItem(name="Trauermarsch", colorIndex=8),
-                ).forEach {
-                    PracticeTime.libraryItemDao.insert(it)
-                    delay(1000) //make sure items have different createdAt values
-                }
-
-                PracticeTime.prefs.edit().putBoolean(PracticeTime.PREFERENCES_KEY_FIRSTRUN, false).apply()
-            }
-        }
+//        if (!PracticeTime.prefs.getBoolean(PracticeTime.PREFERENCES_KEY_APPINTRO_DONE, false)) {
+//            val i = Intent(this, AppIntroActivity::class.java)
+//            i.flags = Intent.FLAG_ACTIVITY_NO_HISTORY
+//            startActivity(i)
+//        }
     }
 
     // periodically check if session is still running (if it is) to remove the badge if yes

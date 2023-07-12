@@ -14,8 +14,6 @@ package de.practicetime.practicetime.ui.library
 
 import android.view.*
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -42,16 +40,19 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.lifecycle.viewmodel.compose.viewModel
 import de.practicetime.practicetime.PracticeTime
 import de.practicetime.practicetime.R
 import de.practicetime.practicetime.database.entities.LibraryFolder
 import de.practicetime.practicetime.database.entities.LibraryItem
+import de.practicetime.practicetime.datastore.LibraryFolderSortMode
+import de.practicetime.practicetime.datastore.LibraryItemSortMode
+import de.practicetime.practicetime.datastore.ThemeSelections
 import de.practicetime.practicetime.shared.*
-import de.practicetime.practicetime.ui.MainState
-import de.practicetime.practicetime.ui.SortDirection
+import de.practicetime.practicetime.viewmodel.*
+import java.util.*
 
 
 //
@@ -73,91 +74,92 @@ import de.practicetime.practicetime.ui.SortDirection
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun Library(mainState: MainState) {
-    val libraryState = rememberLibraryState()
+fun Library(
+    mainViewModel: MainViewModel,
+    libraryViewModel: LibraryViewModel = viewModel()
+) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    val libraryUiState by libraryViewModel.libraryUiState.collectAsState()
 
     Scaffold(
         contentWindowInsets = WindowInsets(bottom = 0.dp), // makes sure FAB is not shifted up
         modifier = Modifier
             .nestedScroll(scrollBehavior.nestedScrollConnection),
         floatingActionButton = {
-            libraryState.activeFolder.value?.let { folder ->
+            val fabUiState = libraryUiState.fabUiState
+            if(fabUiState.activeFolder != null) {
                 FloatingActionButton(
                     onClick = {
-                        libraryState.itemDialogMode.value = DialogMode.ADD
-                        libraryState.itemDialogFolderId.value = folder.id
-                        libraryState.showItemDialog.value = true
-                        libraryState.multiFABState.value = MultiFABState.COLLAPSED
-                        mainState.showNavBarScrim.value = false
+                        libraryViewModel.showItemDialog(fabUiState.activeFolder.id)
+                        mainViewModel.showNavBarScrim.value = false
                     },
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "New item")
                 }
-            } ?: MultiFAB(
-                state = libraryState.multiFABState.value,
-                onStateChange = { state ->
-                    libraryState.multiFABState.value = state
-                    mainState.showNavBarScrim.value = (state == MultiFABState.EXPANDED)
-                    if(state == MultiFABState.EXPANDED) {
-                        libraryState.clearActionMode()
-                    }
-                },
-                miniFABs = listOf(
-                    MiniFABData(
-                        onClick = {
-                            libraryState.itemDialogMode.value = DialogMode.ADD
-                            libraryState.showItemDialog.value = true
-                            libraryState.multiFABState.value = MultiFABState.COLLAPSED
-                            mainState.showNavBarScrim.value = false
-                        },
-                        label = "Item",
-                        icon = Icons.Rounded.MusicNote
-                    ),
-                    MiniFABData(
-                        onClick = {
-                            libraryState.folderDialogMode.value = DialogMode.ADD
-                            libraryState.showFolderDialog.value = true
-                            libraryState.multiFABState.value = MultiFABState.COLLAPSED
-                            mainState.showNavBarScrim.value = false
-                        },
-                        label = "Folder",
-                        icon = Icons.Rounded.Folder
+            } else {
+                MultiFAB(
+                    state = libraryViewModel.multiFABState.value,
+                    onStateChange = { state ->
+                        libraryViewModel.multiFABState.value = state
+                        mainViewModel.showNavBarScrim.value = (state == MultiFABState.EXPANDED)
+                        if(state == MultiFABState.EXPANDED) {
+                            libraryViewModel.clearActionMode()
+                        }
+                    },
+                    miniFABs = listOf(
+                        MiniFABData(
+                            onClick = {
+                                libraryViewModel.showItemDialog()
+                                libraryViewModel.multiFABState.value = MultiFABState.COLLAPSED
+                                mainViewModel.showNavBarScrim.value = false
+                            },
+                            label = "Item",
+                            icon = Icons.Rounded.MusicNote
+                        ),
+                        MiniFABData(
+                            onClick = {
+                                libraryViewModel.showFolderDialog()
+                                libraryViewModel.multiFABState.value = MultiFABState.COLLAPSED
+                                mainViewModel.showNavBarScrim.value = false
+                            },
+                            label = "Folder",
+                            icon = Icons.Rounded.Folder
+                        )
                     )
                 )
-            )
+            }
         },
         topBar = {
+            val topBarUiState = libraryUiState.topBarUiState
             LargeTopAppBar(
                 scrollBehavior = scrollBehavior,
-                title = { Text(text = libraryState.activeFolder.value?.name ?: "Library") },
+                title = { Text(text = topBarUiState.title) },
                 navigationIcon = {
-                    if(libraryState.activeFolder.value != null){
-                        IconButton(onClick = {
-                            libraryState.activeFolder.value = null
-                        }) {
+                    if(topBarUiState.showBackButton) {
+                        IconButton(onClick = libraryViewModel::onTopBarBackPressed) {
                             Icon(Icons.Rounded.ArrowBack, contentDescription = "Back")
                         }
                     }
                 },
                 actions = {
                     IconButton(onClick = {
-                        mainState.showMainMenu.value = true
+                        mainViewModel.showMainMenu.value = true
                     }) {
                         Icon(Icons.Default.MoreVert, contentDescription = "more")
                         MainMenu (
-                            show = mainState.showMainMenu.value,
-                            onDismissHandler = { mainState.showMainMenu.value = false },
+                            show = mainViewModel.showMainMenu.value,
+                            onDismissHandler = { mainViewModel.showMainMenu.value = false },
                             onSelectionHandler = { commonSelection ->
-                                mainState.showMainMenu.value = false
+                                mainViewModel.showMainMenu.value = false
 
                                 when (commonSelection) {
                                     CommonMenuSelections.APP_INFO -> {}
                                     CommonMenuSelections.THEME -> {
-                                        mainState.showThemeSubMenu.value = true
+                                        mainViewModel.showThemeSubMenu.value = true
                                     }
                                     CommonMenuSelections.BACKUP -> {
-                                        mainState.showExportImportDialog.value = true
+                                        mainViewModel.showExportImportDialog.value = true
                                     }
                                 }
                             },
@@ -166,12 +168,12 @@ fun Library(mainState: MainState) {
                             ) }
                         )
                         ThemeMenu(
-                            expanded = mainState.showThemeSubMenu.value,
-                            currentTheme = mainState.activeTheme.value,
-                            onDismissHandler = { mainState.showThemeSubMenu.value = false },
+                            expanded = mainViewModel.showThemeSubMenu.value,
+                            currentTheme = mainViewModel.activeTheme.collectAsState(initial = ThemeSelections.DAY).value,
+                            onDismissHandler = { mainViewModel.showThemeSubMenu.value = false },
                             onSelectionHandler = { theme ->
-                                mainState.showThemeSubMenu.value = false
-                                mainState.setTheme(theme)
+                                mainViewModel.showThemeSubMenu.value = false
+                                mainViewModel.setTheme(theme)
                             }
                         )
                     }
@@ -179,133 +181,34 @@ fun Library(mainState: MainState) {
             )
 
             // Action bar
-
-            if(libraryState.actionMode.value) {
+            val actionModeUiState = libraryUiState.actionModeUiState
+            if(actionModeUiState.isActionMode) {
                 ActionBar(
-                    numSelectedItems =
-                        libraryState.selectedItemIds.size +
-                        libraryState.selectedFolderIds.size,
-                    onDismissHandler = {
-                        libraryState.clearActionMode()
-                    },
-                    onEditHandler = {
-                        libraryState.apply {
-                            mainState.libraryItems.value.firstOrNull { item ->
-                                selectedItemIds.firstOrNull()?.let { it == item.id } ?: false
-                            }?.let { item ->
-                                editableItem.value = item
-                                itemDialogMode.value = DialogMode.EDIT
-                                itemDialogName.value = item.name
-                                itemDialogColorIndex.value = item.colorIndex
-                                itemDialogFolderId.value = item.libraryFolderId
-                                showItemDialog.value = true
-                            } ?: mainState.libraryFolders.value.firstOrNull { folder ->
-                                selectedFolderIds.firstOrNull()?.let { it == folder.id } ?: false
-                            }?.let { folder ->
-                                editableFolder.value = folder
-                                folderDialogMode.value = DialogMode.EDIT
-                                folderDialogName.value = folder.name
-                                showFolderDialog.value = true
-                            }
-                        }
-                        libraryState.clearActionMode()
-                    },
-                    onDeleteHandler = {
-                        mainState.archiveItems(libraryState.selectedItemIds.toList())
-                        mainState.deleteFolders(libraryState.selectedFolderIds.toList())
-                        libraryState.clearActionMode()
-                    }
+                    numSelectedItems = actionModeUiState.numberOfSelections,
+                    onDismissHandler = libraryViewModel::clearActionMode,
+                    onEditHandler = libraryViewModel::onEditAction,
+                    onDeleteHandler = libraryViewModel::onDeleteAction
                 )
             }
         },
         content = { innerPadding ->
+            val contentUiState = libraryUiState.contentUiState
+
             LibraryContent(
                 contentPadding = PaddingValues(
                     top = innerPadding.calculateTopPadding(),
                 ),
-                activeFolder = libraryState.activeFolder.value,
-                showFolderSortMenu = libraryState.showFolderSortModeMenu.value,
-                folderSortMode = mainState.libraryFolderSortMode.value,
-                folderSortDirection = mainState.libraryFolderSortDirection.value,
-                folders = mainState.libraryFolders.collectAsState().value,
-                selectedFolderIds = libraryState.selectedFolderIds,
-                showItemSortMenu = libraryState.showItemSortModeMenu.value,
-                itemSortMode = mainState.libraryItemSortMode.value,
-                itemSortDirection = mainState.libraryItemSortDirection.value,
-                items = mainState.libraryItems.collectAsState().value,
-                selectedItemIds = libraryState.selectedItemIds,
-                onShowFolderSortMenuChange = { libraryState.showFolderSortModeMenu.value = it },
-                onFolderSortModeSelected = {
-                    mainState.sortLibraryFolders(it)
-                    libraryState.showFolderSortModeMenu.value = false
-                },
-                onShowItemSortMenuChange = { libraryState.showItemSortModeMenu.value = it },
-                onItemSortModeSelected = {
-                    mainState.sortLibraryItems(it)
-                    libraryState.showItemSortModeMenu.value = false
-                },
-                onLibraryFolderShortClicked = { folder ->
-                    libraryState.apply {
-                        if(actionMode.value) {
-                            if(selectedFolderIds.contains(folder.id)) {
-                                selectedFolderIds.remove(folder.id)
-                                if(selectedFolderIds.isEmpty() && selectedItemIds.isEmpty()) {
-                                    actionMode.value = false
-                                }
-                            } else {
-                                selectedFolderIds.add(folder.id)
-                            }
-                        } else {
-                            activeFolder.value = folder
-                            clearActionMode()
-                        }
-                    }
-                },
-                onLibraryFolderLongClicked = { folder ->
-                    libraryState.apply {
-                        if (!selectedFolderIds.contains(folder.id)) {
-                            selectedFolderIds.add(folder.id)
-                            actionMode.value = true
-                        }
-                    }
-                },
-                onLibraryItemShortClicked = { item ->
-                    libraryState.apply {
-                        if (actionMode.value) {
-                            if (selectedItemIds.contains(item.id)) {
-                                selectedItemIds.remove(item.id)
-                                if (selectedItemIds.isEmpty() && selectedFolderIds.isEmpty()) {
-                                    actionMode.value = false
-                                }
-                            } else {
-                                selectedItemIds.add(item.id)
-                            }
-                        } else {
-                            editableItem.value = item
-                            itemDialogMode.value = DialogMode.EDIT
-                            itemDialogName.value = item.name
-                            itemDialogColorIndex.value = item.colorIndex
-                            itemDialogFolderId.value = item.libraryFolderId
-                            showItemDialog.value = true
-                            clearActionMode()
-                        }
-                    }
-                },
-                onLibraryItemLongClicked = { item ->
-                    libraryState.apply {
-                        if (!selectedItemIds.contains(item.id)) {
-                            selectedItemIds.add(item.id)
-                            actionMode.value = true
-                        }
-                    }
-                },
+                contentUiState = contentUiState,
+                onShowFolderSortMenuChange = libraryViewModel::onFolderSortMenuChanged,
+                onFolderSortModeSelected = libraryViewModel::onFolderSortModeSelected,
+                onShowItemSortMenuChange = libraryViewModel::onItemSortMenuChanged,
+                onItemSortModeSelected = libraryViewModel::onItemSortModeSelected,
+                onFolderClicked = libraryViewModel::onFolderClicked,
+                onItemClicked = libraryViewModel::onItemClicked,
             )
 
             // Show hint if no items or folders are in the library
-            if (
-                mainState.libraryFolders.collectAsState().value.isEmpty() &&
-                mainState.libraryItems.collectAsState().value.isEmpty()
-            ) {
+            if (contentUiState.showHint) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -320,73 +223,33 @@ fun Library(mainState: MainState) {
                 }
             }
 
-            if(libraryState.showFolderDialog.value) {
+            val dialogUiState = libraryUiState.dialogUiState
+
+            val folderDialogUiState = dialogUiState.folderDialogUiState
+            val itemDialogUiState = dialogUiState.itemDialogUiState
+
+            if(folderDialogUiState != null) {
                 LibraryFolderDialog(
-                    mode = libraryState.folderDialogMode.value,
-                    folderName = libraryState.folderDialogName.value,
-                    onFolderNameChange = { libraryState.folderDialogName.value = it },
-                    onDismissHandler = { create ->
-                        if(create) {
-                            when(libraryState.folderDialogMode.value) {
-                                DialogMode.ADD -> {
-                                    mainState.addLibraryFolder(
-                                        LibraryFolder(
-                                            name = libraryState.folderDialogName.value,
-                                        )
-                                    )
-                                }
-                                DialogMode.EDIT -> {
-                                    libraryState.editableFolder.value?.apply {
-                                        name = libraryState.folderDialogName.value
-                                        mainState.editFolder(this)
-                                    }
-                                }
-                            }
-                        }
-                        libraryState.clearFolderDialog()
-                    },
+                    mode = folderDialogUiState.mode,
+                    folderData = folderDialogUiState.folderData,
+                    onFolderNameChange = libraryViewModel::onFolderDialogNameChanged,
+                    onConfirmHandler = libraryViewModel::onFolderDialogConfirmed,
+                    onDismissHandler = libraryViewModel::clearFolderDialog,
                 )
             }
 
-            if(libraryState.showItemDialog.value) {
+            if(itemDialogUiState != null) {
                 LibraryItemDialog(
-                    mode = libraryState.itemDialogMode.value,
-                    folders = mainState.libraryFolders.collectAsState().value,
-                    name = libraryState.itemDialogName.value,
-                    colorIndex = libraryState.itemDialogColorIndex.value,
-                    folderId = libraryState.itemDialogFolderId.value,
-                    folderSelectorExpanded = libraryState.itemDialogFolderSelectorExpanded.value,
-                    onNameChange = { libraryState.itemDialogName.value = it },
-                    onColorIndexChange = { libraryState.itemDialogColorIndex.value = it },
-                    onFolderIdChange = {
-                        libraryState.itemDialogFolderId.value = it
-                        libraryState.itemDialogFolderSelectorExpanded.value = SpinnerState.COLLAPSED
-                    },
-                    onFolderSelectorExpandedChange = { libraryState.itemDialogFolderSelectorExpanded.value = it },
-                    onDismissHandler = { cancel ->
-                        if(!cancel) {
-                            when(libraryState.itemDialogMode.value) {
-                                DialogMode.ADD -> {
-                                    mainState.addLibraryItem(
-                                        LibraryItem(
-                                            name = libraryState.itemDialogName.value,
-                                            colorIndex = libraryState.itemDialogColorIndex.value,
-                                            libraryFolderId = libraryState.itemDialogFolderId.value
-                                        )
-                                    )
-                                }
-                                DialogMode.EDIT -> {
-                                    libraryState.editableItem.value?.apply {
-                                        name = libraryState.itemDialogName.value
-                                        colorIndex = libraryState.itemDialogColorIndex.value
-                                        libraryFolderId = libraryState.itemDialogFolderId.value
-                                        mainState.editItem(this)
-                                    }
-                                }
-                            }
-                        }
-                        libraryState.clearItemDialog()
-                    },
+                    mode = itemDialogUiState.mode,
+                    folders = itemDialogUiState.folders,
+                    itemData = itemDialogUiState.itemData,
+                    folderSelectorExpanded = itemDialogUiState.isFolderSelectorExpanded,
+                    onNameChange = libraryViewModel::onItemDialogNameChanged,
+                    onColorIndexChange = libraryViewModel::onItemDialogColorIndexChanged,
+                    onSelectedFolderIdChange = libraryViewModel::onItemDialogFolderIdChanged,
+                    onFolderSelectorExpandedChange = libraryViewModel::onFolderSelectorExpandedChanged,
+                    onConfirmHandler = libraryViewModel::onItemDialogConfirmed,
+                    onDismissHandler = libraryViewModel::clearItemDialog,
                 )
             }
 
@@ -394,7 +257,7 @@ fun Library(mainState: MainState) {
             AnimatedVisibility(
                 modifier = Modifier
                     .zIndex(1f),
-                visible = libraryState.multiFABState.value == MultiFABState.EXPANDED,
+                visible = libraryViewModel.multiFABState.value == MultiFABState.EXPANDED,
                 enter = fadeIn(),
                 exit = fadeOut()
             ) {
@@ -406,8 +269,8 @@ fun Library(mainState: MainState) {
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                         ) {
-                            libraryState.multiFABState.value = MultiFABState.COLLAPSED
-                            mainState.showNavBarScrim.value = false
+                            libraryViewModel.multiFABState.value = MultiFABState.COLLAPSED
+                            mainViewModel.showNavBarScrim.value = false
                         }
                 )
             }
@@ -425,25 +288,13 @@ fun LibraryMenuItems(
 @Composable
 fun LibraryContent(
     contentPadding: PaddingValues,
-    activeFolder: LibraryFolder?,
-    showFolderSortMenu: Boolean,
-    folderSortMode: LibraryFolderSortMode,
-    folderSortDirection: SortDirection,
-    folders: List<LibraryFolder>,
-    selectedFolderIds: List<Long>,
-    showItemSortMenu: Boolean,
-    itemSortMode: LibraryItemSortMode,
-    itemSortDirection: SortDirection,
-    items: List<LibraryItem>,
-    selectedItemIds: List<Long>,
+    contentUiState: LibraryContentUiState,
     onShowFolderSortMenuChange: (Boolean) -> Unit,
     onFolderSortModeSelected: (LibraryFolderSortMode) -> Unit,
     onShowItemSortMenuChange: (Boolean) -> Unit,
     onItemSortModeSelected: (LibraryItemSortMode) -> Unit,
-    onLibraryFolderShortClicked: (LibraryFolder) -> Unit,
-    onLibraryFolderLongClicked: (LibraryFolder) -> Unit,
-    onLibraryItemShortClicked: (LibraryItem) -> Unit,
-    onLibraryItemLongClicked: (LibraryItem) -> Unit,
+    onFolderClicked: (LibraryFolder, Boolean) -> Unit,
+    onItemClicked: (LibraryItem, Boolean) -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
@@ -452,8 +303,11 @@ fun LibraryContent(
             bottom = contentPadding.calculateBottomPadding() + 56.dp,
         ),
     ) {
-        // if active folder ist null, we are in the top level
-        if(activeFolder == null) {
+        val foldersUiState = contentUiState.foldersUiState
+        val itemsUiState = contentUiState.itemsUiState
+
+        /** Folders */
+        if(foldersUiState != null) {
             item {
                 Row(
                     modifier = Modifier
@@ -466,11 +320,12 @@ fun LibraryContent(
                         modifier = Modifier.padding(8.dp),
                         text = "Folders", style = MaterialTheme.typography.titleLarge
                     )
+                    val sortMenuUiState = foldersUiState.sortMenuUiState
                     SortMenu(
-                        show = showFolderSortMenu,
+                        show = sortMenuUiState.show,
                         sortModes = LibraryFolderSortMode.values().toList(),
-                        currentSortMode = folderSortMode,
-                        currentSortDirection = folderSortDirection,
+                        currentSortMode = sortMenuUiState.mode,
+                        currentSortDirection = sortMenuUiState.direction,
                         label = { LibraryFolderSortMode.toString(it) },
                         onShowMenuChanged = onShowFolderSortMenuChange,
                         onSelectionHandler = onFolderSortModeSelected
@@ -485,19 +340,19 @@ fun LibraryContent(
                     // but also serve to fixate the list when inserting items
                     item { Spacer(modifier = Modifier.width(4.dp)) }
                     items(
-                        items = folders,
-                        key = { folder -> folder.id }
-                    ) { folder ->
+                        items = foldersUiState.foldersWithItemCount,
+                        key = { it.folder.id }
+                    ) { (folder, itemCount) ->
                         Row(
                             modifier = Modifier
                                 .animateItemPlacement()
                         ) {
                             LibraryFolder(
                                 folder = folder,
-                                numItems = items.filter { it.libraryFolderId == folder.id }.size,
-                                selected = selectedFolderIds.contains(folder.id),
-                                onShortClick = { onLibraryFolderShortClicked(folder) },
-                                onLongClick = { onLibraryFolderLongClicked(folder) }
+                                numItems = itemCount,
+                                selected = folder in foldersUiState.selectedFolders,
+                                onShortClick = { onFolderClicked(folder, false) },
+                                onLongClick = { onFolderClicked(folder, true) }
                             )
                         }
                     }
@@ -505,8 +360,9 @@ fun LibraryContent(
                 }
             }
         }
-        val itemsInActiveFolder = items.filter { it.libraryFolderId == activeFolder?.id }
-        if(itemsInActiveFolder.isNotEmpty()) {
+
+        /** Items */
+        if(itemsUiState != null) {
             item {
                 Row(
                     modifier = Modifier
@@ -521,11 +377,12 @@ fun LibraryContent(
                         text = "Items",
                         style = MaterialTheme.typography.titleLarge
                     )
+                    val sortMenuUiState = itemsUiState.sortMenuUiState
                     SortMenu(
-                        show = showItemSortMenu,
+                        show = sortMenuUiState.show,
                         sortModes = LibraryItemSortMode.values().toList(),
-                        currentSortMode = itemSortMode,
-                        currentSortDirection = itemSortDirection,
+                        currentSortMode = sortMenuUiState.mode,
+                        currentSortDirection = sortMenuUiState.direction,
                         label = { LibraryItemSortMode.toString(it) },
                         onShowMenuChanged = onShowItemSortMenuChange,
                         onSelectionHandler = onItemSortModeSelected
@@ -533,7 +390,7 @@ fun LibraryContent(
                 }
             }
             items(
-                items=itemsInActiveFolder,
+                items=itemsUiState.items,
                 key = { item -> item.id }
             ) { item ->
                 Box(
@@ -543,9 +400,9 @@ fun LibraryContent(
                         modifier = Modifier
                             .padding(vertical = 8.dp, horizontal = 16.dp),
                         libraryItem = item,
-                        selected = item.id in selectedItemIds,
-                        onShortClick = { onLibraryItemShortClicked(item) },
-                        onLongClick = { onLibraryItemLongClicked(item) }
+                        selected = item in itemsUiState.selectedItems,
+                        onShortClick = { onItemClicked(item, false) },
+                        onLongClick = { onItemClicked(item, true) }
                     )
                 }
             }

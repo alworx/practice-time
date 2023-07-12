@@ -23,17 +23,18 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.google.android.material.button.MaterialButton
-import de.practicetime.practicetime.PracticeTime
 import de.practicetime.practicetime.R
+import de.practicetime.practicetime.database.PTDatabase
+import de.practicetime.practicetime.database.SectionWithLibraryItem
+import de.practicetime.practicetime.database.SessionWithSectionsWithLibraryItems
 import de.practicetime.practicetime.database.entities.Section
-import de.practicetime.practicetime.database.entities.SectionWithLibraryItem
-import de.practicetime.practicetime.database.entities.SessionWithSectionsWithLibraryItems
 import de.practicetime.practicetime.shared.EditTimeDialog
 import de.practicetime.practicetime.ui.MainActivity
 import de.practicetime.practicetime.utils.TIME_FORMAT_HUMAN_PRETTY
 import de.practicetime.practicetime.utils.getDurationString
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.*
 
 
 class FullscreenSessionActivity : AppCompatActivity() {
@@ -89,7 +90,7 @@ class FullscreenSessionActivity : AppCompatActivity() {
         val sessionId = intent.extras?.getLong("KEY_SESSION")
 
         if (sessionId != null) {
-            showFullscreenSession(sessionId)
+//            showFullscreenSession(sessionId)
             findViewById<MaterialButton>(R.id.fullscreen_session_cancel).setOnClickListener {
                 if(!sessionEdited) return@setOnClickListener exitActivity()
                 confirmationDialog.apply {
@@ -106,36 +107,36 @@ class FullscreenSessionActivity : AppCompatActivity() {
                 }
             }
 
-            findViewById<MaterialButton>(R.id.fullscreen_session_save).setOnClickListener {
-                confirmationDialog.apply {
-                    setMessage(getString(R.string.confirm_changes_dialog_message))
-                    show()
-                    getButton(AlertDialog.BUTTON_NEGATIVE).setText(R.string.dialogCancel)
-                    getButton(AlertDialog.BUTTON_POSITIVE).apply {
-                        setText(R.string.confirm_changes_dialog_ok)
-                        setOnClickListener {
-                            lifecycleScope.launch {
-                                PracticeTime.sessionDao.update(
-                                    sessionId,
-                                    newRating = ratingBarView.rating.toInt(),
-                                    newSections = sectionAdapterData,
-                                    newComment = if(showCommentPlaceholder) ""
-                                        else commentFieldView.text.toString(),
-                                )
-                                dismiss()
-                                exitActivity()
-                            }
-                        }
-                    }
-                }
-            }
+//            findViewById<MaterialButton>(R.id.fullscreen_session_save).setOnClickListener {
+//                confirmationDialog.apply {
+//                    setMessage(getString(R.string.confirm_changes_dialog_message))
+//                    show()
+//                    getButton(AlertDialog.BUTTON_NEGATIVE).setText(R.string.dialogCancel)
+//                    getButton(AlertDialog.BUTTON_POSITIVE).apply {
+//                        setText(R.string.confirm_changes_dialog_ok)
+//                        setOnClickListener {
+//                            lifecycleScope.launch {
+//                                PracticeTime.sessionDao.update(
+//                                    sessionId,
+//                                    newRating = ratingBarView.rating.toInt(),
+//                                    newSections = sectionAdapterData,
+//                                    newComment = if(showCommentPlaceholder) ""
+//                                        else commentFieldView.text.toString(),
+//                                )
+//                                dismiss()
+//                                exitActivity()
+//                            }
+//                        }
+//                    }
+//                }
+//            }
         } else {
             exitActivity()
         }
 
     }
 
-    private fun showFullscreenSession(sessionId: Long) {
+    private fun showFullscreenSession(sessionId: UUID, context: Context) {
         ratingBarView = findViewById(R.id.fullscreen_session_rating_bar)
         sectionListView = findViewById(R.id.fullscreen_session_section_list)
         commentFieldView = findViewById(R.id.fullscreen_session_comment_field)
@@ -154,7 +155,7 @@ class FullscreenSessionActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             sessionWithSectionsWithLibraryItems =
-                PracticeTime.sessionDao.getWithSectionsWithLibraryItems(sessionId)
+                PTDatabase.getInstance(context).sessionDao.getWithSectionsWithLibraryItems(sessionId)
             val (session, sectionsWithLibraryItems) = sessionWithSectionsWithLibraryItems!!
 
             ratingBarView.progress = session.rating
@@ -192,7 +193,7 @@ class FullscreenSessionActivity : AppCompatActivity() {
             setPositiveButton(R.string.discard_dialog_ok) { dialog, _ ->
                 dialog.dismiss()
             }
-            setNegativeButton(R.string.dialogCancel) { dialog, _ ->
+            setNegativeButton(R.string.dialogDismiss) { dialog, _ ->
                 dialog.cancel()
             }
         }.create()

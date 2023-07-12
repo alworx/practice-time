@@ -14,16 +14,19 @@
 package de.practicetime.practicetime.database
 
 import android.content.ContentValues
+import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
-import androidx.room.Database
-import androidx.room.RoomDatabase
+import androidx.room.*
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteQueryBuilder
 import de.practicetime.practicetime.database.daos.*
 import de.practicetime.practicetime.database.entities.*
 import de.practicetime.practicetime.utils.getCurrTimestamp
+import kotlinx.coroutines.*
+import java.nio.ByteBuffer
+import java.util.*
 
 @Database(
     version = 3,
@@ -38,6 +41,7 @@ import de.practicetime.practicetime.utils.getCurrTimestamp
     ],
     exportSchema = true,
 )
+@TypeConverters(UUIDConverter::class)
 abstract class PTDatabase : RoomDatabase() {
     abstract val libraryItemDao : LibraryItemDao
     abstract val libraryFolderDao : LibraryFolderDao
@@ -45,7 +49,63 @@ abstract class PTDatabase : RoomDatabase() {
     abstract val goalInstanceDao : GoalInstanceDao
     abstract val sessionDao : SessionDao
     abstract val sectionDao : SectionDao
+
+    companion object {
+        private const val DATABASE_NAME = "pt-database"
+
+        @Volatile private var INSTANCE: PTDatabase? = null
+
+        fun getInstance(context: Context, prepopulateDatabase: () -> Unit = {}) =
+            INSTANCE ?: synchronized(this) {
+                INSTANCE ?: buildDatabase(context, prepopulateDatabase).also { INSTANCE = it }
+            }
+
+        private fun buildDatabase(context: Context, prepopulateDatabase: () -> Unit) =
+            Room.databaseBuilder(
+                context.applicationContext,
+                PTDatabase::class.java,
+                DATABASE_NAME
+            ).addMigrations(
+                PTDatabaseMigrationOneToTwo
+            ).addCallback(object : Callback() {
+                // prepopulate the database after onCreate was called
+                override fun onCreate(db: SupportSQLiteDatabase) {
+                    super.onCreate(db)
+                    // prepopulate the database
+                    prepopulateDatabase()
+                }
+            }).build()
+    }
 }
+
+/** Source: https://android.googlesource.com/platform/frameworks/support/+/refs/heads/androidx-main/room/integration-tests/kotlintestapp/src/androidTest/java/androidx/room/integration/kotlintestapp/test/UuidColumnTypeAdapterTest.kt */
+class UUIDConverter {
+    @TypeConverter
+    fun fromByte(bytes: ByteArray? = null): UUID? {
+        if (bytes == null) return null
+        val bb = ByteBuffer.wrap(bytes)
+        return UUID(bb.long, bb.long)
+    }
+
+    @TypeConverter
+    fun toByte(uuid: UUID? = null): ByteArray? {
+        if (uuid == null) return null
+        val bb = ByteBuffer.wrap(ByteArray(16))
+        bb.putLong(uuid.mostSignificantBits)
+        bb.putLong(uuid.leastSignificantBits)
+        return bb.array()
+    }
+
+    companion object {
+        fun toDBString(uuid: UUID) =
+            ByteBuffer.wrap(ByteArray(16)).let { buffer ->
+                buffer.putLong(uuid.mostSignificantBits)
+                buffer.putLong(uuid.leastSignificantBits)
+                buffer.array().joinToString(separator = "") { "%02x".format(it) }
+            }
+    }
+}
+
 
 object PTDatabaseMigrationOneToTwo : Migration(1,2) {
     /**

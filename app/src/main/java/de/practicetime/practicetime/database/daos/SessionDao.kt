@@ -1,38 +1,43 @@
 /*
- * This software is licensed under the MIT license
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * Copyright (c) 2022 Matthias Emde
+ *
+ * Parts of this software are licensed under the MIT license
  *
  * Copyright (c) 2022, Javier Carbone, author Matthias Emde
  */
 
 package de.practicetime.practicetime.database.daos
 
-import androidx.room.Dao
-import androidx.room.Query
-import androidx.room.Transaction
-import de.practicetime.practicetime.PracticeTime
-import de.practicetime.practicetime.database.BaseDao
+import androidx.room.*
+import de.practicetime.practicetime.database.*
 import de.practicetime.practicetime.database.entities.*
+import kotlinx.coroutines.flow.Flow
+import java.util.*
 
 @Dao
-abstract class SessionDao : BaseDao<Session>(tableName = "session") {
+abstract class SessionDao(
+    private val database : PTDatabase
+) : BaseDao<Session>(
+    tableName = "session",
+    database = database
+) {
 
     /**
      * @Insert
       */
 
     @Transaction
-    open suspend fun insertSessionWithSections(
+    open suspend fun insert(
         sessionWithSections: SessionWithSections,
-    ) : Long {
-        val newSessionId = insert(sessionWithSections.session)
-
-        // add the new sessionId to every section...
-        for (section in sessionWithSections.sections) {
-            section.sessionId = newSessionId
-            // and insert them into the database
-            PracticeTime.sectionDao.insert(section)
-        }
-        return newSessionId
+    ) {
+        insert(sessionWithSections.session)
+        database.sectionDao.insert(sessionWithSections.sections.map {
+            it.copy(sessionId = sessionWithSections.session.id) }
+        )
     }
 
 
@@ -45,10 +50,10 @@ abstract class SessionDao : BaseDao<Session>(tableName = "session") {
 //    }
 
     @Transaction
-    open suspend fun delete(sessionId: Long, updatedGoalInstances: List<GoalInstance>) {
+    open suspend fun delete(sessionId: UUID, updatedGoalInstances: List<GoalInstance>) {
         get(sessionId)?.let { session ->
-            updatedGoalInstances.forEach { PracticeTime.goalInstanceDao.update(it) }
-            PracticeTime.sectionDao.apply {
+            updatedGoalInstances.forEach { database.goalInstanceDao.update(it) }
+            database.sectionDao.apply {
                 getFromSession(sessionId).forEach { delete(it) }
             }
                 delete(session)
@@ -62,23 +67,23 @@ abstract class SessionDao : BaseDao<Session>(tableName = "session") {
 
     @Transaction
     @Query("SELECT * FROM session WHERE id=:sessionId")
-    abstract suspend fun getWithSections(sessionId: Long): SessionWithSections
+    abstract suspend fun getWithSections(sessionId: UUID): SessionWithSections
 
     @Transaction
     @Query("SELECT * FROM session WHERE id=:sessionId")
     abstract suspend fun getWithSectionsWithLibraryItems(
-        sessionId: Long
+        sessionId: UUID
     ): SessionWithSectionsWithLibraryItems
 
     @Transaction
     @Query("SELECT * FROM session")
-    abstract suspend fun getAllWithSectionsWithLibraryItems(
-    ): List<SessionWithSectionsWithLibraryItems>
+    abstract fun getAllWithSectionsWithLibraryItems(
+    ): Flow<List<SessionWithSectionsWithLibraryItems>>
 
     @Transaction
     @Query("SELECT * FROM session WHERE id=:sessionId")
     abstract suspend fun getWithSectionsWithLibraryItemsWithGoals(
-        sessionId: Long
+        sessionId: UUID
     ) : SessionWithSectionsWithLibraryItemsWithGoalDescriptions
 
     @Transaction
@@ -96,7 +101,7 @@ abstract class SessionDao : BaseDao<Session>(tableName = "session") {
 
     @Transaction
     open suspend fun update(
-        sessionId: Long,
+        sessionId: UUID,
         newRating: Int,
         newSections: List<SectionWithLibraryItem>,
         newComment: String,
@@ -112,13 +117,13 @@ abstract class SessionDao : BaseDao<Session>(tableName = "session") {
             }?.section?.duration ?: 0) - (section.duration ?: 0)
         }
 
-        val goalProgress = PracticeTime.goalDescriptionDao.computeGoalProgressForSession(
+        val goalProgress = database.goalDescriptionDao.computeGoalProgressForSession(
             sessionWithSectionsWithLibraryItemsWithGoals,
             checkArchived = true
         )
 
         // get all active goal instances at the time of the session
-        PracticeTime.goalInstanceDao.apply {
+        database.goalInstanceDao.apply {
             get(
                 goalDescriptionIds = goalProgress.keys.toList(),
                 from = sessionWithSectionsWithLibraryItemsWithGoals.sections.first().section.timestamp
@@ -136,7 +141,7 @@ abstract class SessionDao : BaseDao<Session>(tableName = "session") {
 
         // update all sections
         newSections.forEach { (section, _) ->
-            PracticeTime.sectionDao.update(section)
+            database.sectionDao.update(section)
         }
 
         sessionWithSectionsWithLibraryItemsWithGoals.session.apply {

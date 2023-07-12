@@ -15,7 +15,6 @@ package de.practicetime.practicetime.ui.goals
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.ColorStateList
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -23,12 +22,10 @@ import android.widget.*
 import androidx.appcompat.widget.AppCompatButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.ComposeView
@@ -38,13 +35,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.core.widget.addTextChangedListener
 import com.google.android.material.button.MaterialButton
 import de.practicetime.practicetime.R
 import de.practicetime.practicetime.components.NumberInput
+import de.practicetime.practicetime.database.GoalDescriptionWithLibraryItems
 import de.practicetime.practicetime.database.entities.*
-import de.practicetime.practicetime.shared.DialogHeader
-import de.practicetime.practicetime.ui.library.DialogMode
+import de.practicetime.practicetime.shared.*
+import de.practicetime.practicetime.viewmodel.GoalDialogData
+import java.util.*
 
 @SuppressLint("ViewConstructor")
 class GoalDialog(
@@ -318,13 +316,220 @@ class GoalDialog(
 }
 
 @Composable
+fun TimeInput(
+    value: Int,
+    onValueChanged: (Int) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center
+    ) {
+        var hours = (value / 3600).toString().padStart(2, '0')
+        var minutes = ((value % 3600) / 60).toString().padStart(2, '0')
+
+        NumberInput(
+            value = hours,
+            onValueChange = {
+                hours = it
+                onValueChanged((hours.toIntOrNull() ?: 0) * 3600 +
+                        (minutes.toIntOrNull() ?: 0) * 60
+                )
+            },
+            showLeadingZero = true,
+            textSize = 40.sp,
+            maxValue = 99,
+            imeAction = ImeAction.Next,
+            label = { modifier ->
+                Text(modifier = modifier, text = "h", style = MaterialTheme.typography.labelLarge)
+            }
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        NumberInput(
+            value = minutes,
+            onValueChange = {
+                minutes = it
+                onValueChanged((hours.toIntOrNull() ?: 0) * 3600 +
+                        (minutes.toIntOrNull() ?: 0) * 60
+                )
+            },
+            showLeadingZero = true,
+            textSize = 40.sp,
+            maxValue = 59,
+            imeAction = ImeAction.Done,
+            label = { modifier ->
+                Text(modifier = modifier, text = "m", style = MaterialTheme.typography.labelLarge)
+            }
+        )
+    }
+}
+
+@Composable
+fun PeriodInput(
+    periodInPeriodUnits: Int,
+    periodUnit: GoalPeriodUnit,
+    periodUnitSelectorExpanded: Boolean,
+    onPeriodChanged: (Int) -> Unit,
+    onPeriodUnitChanged: (GoalPeriodUnit) -> Unit,
+    onPeriodUnitSelectorExpandedChanged: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = "in")
+        Spacer(modifier = Modifier.width(8.dp))
+        NumberInput(
+            value = periodInPeriodUnits.toString(),
+            onValueChange = { onPeriodChanged(it.toIntOrNull() ?: 0) },
+            textSize = 20.sp,
+            maxValue = 99,
+            imeAction = ImeAction.Next,
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        SelectionSpinner(
+            modifier = Modifier.width(130.dp),
+            expanded = periodUnitSelectorExpanded,
+            options = GoalPeriodUnit.values().map { IntSelectionSpinnerOption(it.ordinal, GoalPeriodUnit.toString(it)) },
+            selected = IntSelectionSpinnerOption(periodUnit.ordinal, GoalPeriodUnit.toString(periodUnit)),
+            onExpandedChange = onPeriodUnitSelectorExpandedChanged,
+            onSelectedChange = {selection ->
+                onPeriodUnitChanged(GoalPeriodUnit.values()[(selection as IntSelectionSpinnerOption?)?.id ?: 0])
+                onPeriodUnitSelectorExpandedChanged(false)
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+fun GoalDialog(
+    dialogData: GoalDialogData,
+    periodUnitSelectorExpanded: Boolean,
+    libraryItems: List<LibraryItem>,
+    libraryItemsSelectorExpanded: Boolean,
+    onTargetChanged: (Int) -> Unit,
+    onPeriodChanged: (Int) -> Unit,
+    onPeriodUnitChanged: (GoalPeriodUnit) -> Unit,
+    onPeriodUnitSelectorExpandedChanged: (Boolean) -> Unit,
+    onGoalTypeChanged: (GoalType) -> Unit,
+    onLibraryItemsSelectorExpandedChanged: (Boolean) -> Unit,
+    onSelectedLibraryItemsChanged: (List<LibraryItem>) -> Unit,
+    onConfirmHandler: () -> Unit,
+    onDismissHandler: () -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismissHandler,
+        properties = DialogProperties(
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true,
+            usePlatformDefaultWidth = false,
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(24.dp) // TODO: figure out a better way to do this
+                .clip(MaterialTheme.shapes.extraLarge)
+                .background(MaterialTheme.colorScheme.surface),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            DialogHeader(title = stringResource(id = R.string.addGoalDialogTitle))
+
+            var confirmButtonEnabled = true
+            TimeInput(dialogData.target, onTargetChanged)
+            confirmButtonEnabled = confirmButtonEnabled && dialogData.target > 0
+
+            if(dialogData.periodUnit != null && dialogData.periodInPeriodUnits != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                PeriodInput(
+                    periodInPeriodUnits = dialogData.periodInPeriodUnits,
+                    periodUnit = dialogData.periodUnit,
+                    periodUnitSelectorExpanded = periodUnitSelectorExpanded,
+                    onPeriodChanged = onPeriodChanged,
+                    onPeriodUnitChanged = onPeriodUnitChanged,
+                    onPeriodUnitSelectorExpandedChanged = onPeriodUnitSelectorExpandedChanged
+                )
+                confirmButtonEnabled = confirmButtonEnabled && dialogData.periodInPeriodUnits > 0
+            }
+
+            if(dialogData.goalType != null && dialogData.selectedLibraryItems != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(modifier = Modifier.padding(horizontal = 32.dp)){Divider()}
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                MyToggleButton(
+                    modifier = Modifier.padding(horizontal = 32.dp),
+                    options = GoalType.values().map {
+                        ToggleButtonOption(it.ordinal, GoalType.toString(it))
+                    },
+                    selected = ToggleButtonOption(
+                        dialogData.goalType.ordinal,
+                        GoalType.toString(dialogData.goalType)
+                    ),
+                    onSelectedChanged = { option ->
+                        onGoalTypeChanged(GoalType.values()[option.id])
+                    }
+                )
+
+                if(dialogData.goalType == GoalType.ITEM_SPECIFIC) {
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    if(libraryItems.isNotEmpty()) {
+                        SelectionSpinner(
+                            expanded = libraryItemsSelectorExpanded,
+                            options = libraryItems.map {
+                                UUIDSelectionSpinnerOption(
+                                    it.id,
+                                    it.name
+                                )
+                            },
+                            selected = dialogData.selectedLibraryItems.firstOrNull()?.let {
+                                UUIDSelectionSpinnerOption(it.id, it.name)
+                            } ?: libraryItems.first().let {
+                                UUIDSelectionSpinnerOption(it.id, it.name)
+                            },
+                            onExpandedChange = onLibraryItemsSelectorExpandedChanged,
+                            onSelectedChange = { selection ->
+                                onSelectedLibraryItemsChanged(libraryItems.filter {
+                                    it.id == (selection as UUIDSelectionSpinnerOption).id
+                                })
+                                onLibraryItemsSelectorExpandedChanged(false)
+                            }
+                        )
+                    } else {
+                        Text(text = "No items in your library.")
+
+                    }
+                }
+
+                confirmButtonEnabled = confirmButtonEnabled &&
+                    (
+                        dialogData.goalType == GoalType.NON_SPECIFIC ||
+                        dialogData.selectedLibraryItems.isNotEmpty()
+                    )
+            }
+
+            DialogActions(
+                onConfirmHandler = onConfirmHandler,
+                onDismissHandler = onDismissHandler,
+                confirmButtonEnabled = confirmButtonEnabled,
+                confirmButtonText = "Create"
+            )
+        }
+    }
+}
+
+@Composable
 fun EditGoalDialog(
     value: Int,
     onValueChanged: (Int) -> Unit,
-    onDismissHandler: (Boolean) -> Unit,
+    onConfirmHandler: () -> Unit,
+    onDismissHandler: () -> Unit,
 ) {
     Dialog(
-        onDismissRequest = { onDismissHandler(true) }
+        onDismissRequest = onDismissHandler
     ) {
         Column(
             modifier = Modifier
@@ -332,50 +537,7 @@ fun EditGoalDialog(
                 .background(MaterialTheme.colorScheme.surface)
         ) {
             DialogHeader(title = stringResource(id = R.string.goalDialogTitleEdit))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center
-            ) {
-                var hours by remember {
-                    mutableStateOf((value / 3600).toString().padStart(2, '0'))
-                }
-                var minutes by remember {
-                    mutableStateOf(((value % 3600) / 60).toString().padStart(2, '0'))
-                }
-                NumberInput(
-                    value = hours,
-                    onValueChange = {
-                        hours = it
-                        onValueChanged((hours.toIntOrNull() ?: 0) * 3600 +
-                            (minutes.toIntOrNull() ?: 0) * 60
-                        )
-                    },
-                    showLeadingZero = true,
-                    textSize = 40.sp,
-                    maxValue = 99,
-                    imeAction = ImeAction.Next,
-                    label = { modifier ->
-                        Text(modifier = modifier, text = "h", style = MaterialTheme.typography.labelLarge)
-                    }
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                NumberInput(
-                    value = minutes,
-                    onValueChange = {
-                        minutes = it
-                        onValueChanged((hours.toIntOrNull() ?: 0) * 3600 +
-                            (minutes.toIntOrNull() ?: 0) * 60
-                        )
-                    },
-                    showLeadingZero = true,
-                    textSize = 40.sp,
-                    maxValue = 59,
-                    imeAction = ImeAction.Done,
-                    label = { modifier ->
-                        Text(modifier = modifier, text = "m", style = MaterialTheme.typography.labelLarge)
-                    }
-                )
-            }
+            TimeInput(value, onValueChanged)
             Row(
                 modifier = Modifier
                     .padding(24.dp)
@@ -383,7 +545,7 @@ fun EditGoalDialog(
                 horizontalArrangement = Arrangement.End
             ) {
                 TextButton(
-                    onClick = { onDismissHandler(true) },
+                    onClick = onDismissHandler,
                     colors = ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.primary
                     )
@@ -391,7 +553,7 @@ fun EditGoalDialog(
                     Text(text = "Cancel")
                 }
                 TextButton(
-                    onClick = { onDismissHandler(false) },
+                    onClick = onConfirmHandler,
 //                    enabled = name.isNotEmpty(),
                     colors = ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.primary

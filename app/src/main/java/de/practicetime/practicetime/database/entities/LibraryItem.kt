@@ -14,17 +14,29 @@ package de.practicetime.practicetime.database.entities
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.ForeignKey
 import de.practicetime.practicetime.database.ModelWithTimestamps
+import java.util.*
 
-@Entity(tableName = "library_item")
+@Entity(
+    tableName = "library_item",
+    foreignKeys = [
+        ForeignKey(
+            entity = LibraryFolder::class,
+            parentColumns = ["id"],
+            childColumns = ["library_folder_id"],
+            onDelete = ForeignKey.SET_DEFAULT
+        )
+    ]
+)
 data class LibraryItem (
     @ColumnInfo(name="name") var name: String,
     @ColumnInfo(name="color_index") var colorIndex: Int,
     @ColumnInfo(name="library_folder_id", index = true, defaultValue = "null")
-    var libraryFolderId: Long? = null,
-    @ColumnInfo(name="profile_id", index = true) val profileId: Int = 0,
+    var libraryFolderId: UUID? = null,
+//    @ColumnInfo(name="profile_id", index = true) val profileId: UUID? = null,
     @ColumnInfo(name="archived") var archived: Boolean = false,
-    @ColumnInfo(name="order", defaultValue = "0") var order: Int = 0,
+    @ColumnInfo(name="order", defaultValue = "null") var order: Int? = null,
     @ColumnInfo(name="bpm", defaultValue = "null") var bpm: Int? = null,
     @ColumnInfo(name="bpb", defaultValue = "null") var bpb: Int? = null,
     @ColumnInfo(name="cpb", defaultValue = "null") var cpb: Int? = null,
@@ -34,7 +46,7 @@ data class LibraryItem (
             "\tname: \t\t\t\t${this.name}\n" +
             "\tcolor_index: \t\t${this.colorIndex}\n" +
             "\tlibrary_folder_id: \t${this.libraryFolderId}\n" +
-            "\tprofile_id: \t\t${this.profileId}\n" +
+//            "\tprofile_id: \t\t${this.profileId}\n" +
             "\tarchived: \t\t\t${this.archived}\n" +
             "\torder: \t\t\t\t${this.order}\n" +
             "\tmetronome: \t\t\t\t${this.bpm}bpm ${this.bpb}/${this.cpb}\n"

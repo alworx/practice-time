@@ -47,10 +47,11 @@ import com.google.android.material.snackbar.Snackbar
 import de.practicetime.practicetime.PracticeTime
 import de.practicetime.practicetime.R
 import de.practicetime.practicetime.components.NonDraggableRatingBar
+import de.practicetime.practicetime.database.PTDatabase
+import de.practicetime.practicetime.database.SessionWithSections
 import de.practicetime.practicetime.database.entities.LibraryItem
 import de.practicetime.practicetime.database.entities.Section
 import de.practicetime.practicetime.database.entities.Session
-import de.practicetime.practicetime.database.entities.SessionWithSections
 import de.practicetime.practicetime.services.RecorderService
 import de.practicetime.practicetime.services.SessionForegroundService
 import de.practicetime.practicetime.ui.MainActivity
@@ -61,6 +62,7 @@ import de.practicetime.practicetime.utils.TIME_FORMAT_HMS_DIGITAL
 import de.practicetime.practicetime.utils.TIME_FORMAT_MS_DIGITAL
 import de.practicetime.practicetime.utils.getCurrTimestamp
 import de.practicetime.practicetime.utils.getDurationString
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.IOException
@@ -216,7 +218,7 @@ class ActiveSessionActivity : AppCompatActivity() {
 
         // load all active libraryItems from the database and notify the adapter
         lifecycleScope.launch {
-            PracticeTime.libraryItemDao.get(activeOnly = true).let { activeLibraryItems.addAll(it.reversed())
+            PTDatabase.getInstance(applicationContext).libraryItemDao.get(activeOnly = true).first().let { activeLibraryItems.addAll(it.reversed())
                 libraryItemAdapter.notifyItemRangeInserted(0, it.size)
             }
             libraryItemList.apply {
@@ -230,12 +232,11 @@ class ActiveSessionActivity : AppCompatActivity() {
         // the handler for creating new libraryItems
         fun addLibraryItemHandler(newLibraryItem: LibraryItem) {
             lifecycleScope.launch {
-                PracticeTime.libraryItemDao.insertAndGet(newLibraryItem)?.let {
-                    activeLibraryItems.add(0, it)
-                    libraryItemAdapter.notifyItemInserted(0)
-                    libraryItemList.scrollToPosition(0)
-                    adjustSpanCountCatList()
-                }
+                PTDatabase.getInstance(applicationContext).libraryItemDao.insert(newLibraryItem)
+                activeLibraryItems.add(0, newLibraryItem)
+                libraryItemAdapter.notifyItemInserted(0)
+                libraryItemList.scrollToPosition(0)
+                adjustSpanCountCatList()
             }
         }
 
@@ -1155,7 +1156,7 @@ class ActiveSessionActivity : AppCompatActivity() {
             }
             setPauseStopBtnVisibility(true)
             // when the session start, also update the goals
-            lifecycleScope.launch { updateGoals() }
+            lifecycleScope.launch { updateGoals(applicationContext) }
         } else if (mService.sectionBuffer.last().let {         // when session is running, don't allow starting if...
                 (libraryItemId == it.first.libraryItemId) ||   // ... in the same library item
                         ((it.first.duration
@@ -1371,7 +1372,7 @@ class ActiveSessionActivity : AppCompatActivity() {
             }
 
             // and insert it the resulting section list into the database together with the session
-            val sessionId = PracticeTime.sessionDao.insertSessionWithSections(
+            PTDatabase.getInstance(applicationContext).sessionDao.insert(
                 SessionWithSections(
                     session = newSession,
                     sections = mService.sectionBuffer.map { it.first }
@@ -1382,11 +1383,11 @@ class ActiveSessionActivity : AppCompatActivity() {
             mService.sectionBuffer.clear()
             // refresh the adapter otherwise the app will crash because of "inconsistency detected"
             findViewById<RecyclerView>(R.id.currentSections).adapter = sectionsListAdapter
-            exitActivity(sessionId)
+            exitActivity(newSession.id)
         }
     }
 
-    private fun exitActivity(sessionId: Long) {
+    private fun exitActivity(sessionId: UUID) {
         // stop the service
         Intent(this, SessionForegroundService::class.java).also {
             stopService(it)
@@ -1394,7 +1395,7 @@ class ActiveSessionActivity : AppCompatActivity() {
         // go back to MainActivity, make new intent so MainActivity gets reloaded and shows new session
         val intent = Intent(this, MainActivity::class.java)
         val pBundle = Bundle()
-        pBundle.putLong("KEY_SESSION", sessionId)
+//        pBundle.putLong("KEY_SESSION", sessionId)
         intent.putExtras(pBundle)
         intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
         startActivity(intent)
