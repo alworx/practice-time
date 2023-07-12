@@ -1154,7 +1154,6 @@ class ActiveSessionActivity : AppCompatActivity() {
                 startService(it)
             }
             setPauseStopBtnVisibility(true)
-
             // when the session start, also update the goals
             lifecycleScope.launch { updateGoals() }
         } else if (mService.sectionBuffer.last().let {         // when session is running, don't allow starting if...
@@ -1163,10 +1162,29 @@ class ActiveSessionActivity : AppCompatActivity() {
                             ?: (0 - it.second)) < 1)           // ... section running for less than 1sec
         }) {
             return  // ignore press then
+        } else {
+            saveLibraryItemMetronome()
         }
 
         // start a new section for the chosen library item
         mService.startNewSection(libraryItemId, activeLibraryItems[index].name)
+
+        // set metronome settings when set in library item
+        activeLibraryItems[index].bpm?.let {
+            mService.metronomeBeatsPerMinute = activeLibraryItems[index].bpm!!
+        }
+        activeLibraryItems[index].bpb?.let {
+            mService.metronomeBeatsPerBar =  activeLibraryItems[index].bpb!!
+            bpbView.text = mService.metronomeBeatsPerBar.toString()
+        }
+        activeLibraryItems[index].cpb?.let {
+            mService.metronomeClicksPerBeat = activeLibraryItems[index].cpb!!
+            cpbView.text = mService.metronomeClicksPerBeat.toString()
+        }
+
+        if (activeLibraryItems[index].let { li -> li.bpm != null || li.bpb != null || li.cpb != null  }) {
+            syncUIToNewBPM()
+        }
 
         updateActiveSectionView()
         adaptBottomTextView(true)
@@ -1176,6 +1194,30 @@ class ActiveSessionActivity : AppCompatActivity() {
         // animation even when list is full and should scroll
         sectionsListAdapter.notifyItemInserted(mService.sectionBuffer.size - 2)
 
+    }
+
+    private fun saveLibraryItemMetronome() {
+        // save bpm to previous library item
+        mService.sectionBuffer.last().let { it ->
+            it.first.libraryItemId.let {prevId ->
+                val prevIndex = activeLibraryItems.indexOfFirst { it.id == prevId }
+                if (prevIndex > -1) {
+                    activeLibraryItems[prevIndex].apply {
+                        bpm = mService.metronomeBeatsPerMinute
+                        bpb = mService.metronomeBeatsPerBar
+                        cpb = mService.metronomeClicksPerBeat
+                    }
+                    lifecycleScope.launch {
+                        PracticeTime.libraryItemDao.updateMetronome(
+                            prevId,
+                            mService.metronomeBeatsPerMinute,
+                            mService.metronomeBeatsPerBar,
+                            mService.metronomeClicksPerBeat
+                        )
+                    }
+                }
+            }
+        }
     }
 
     private fun updateActiveSectionView() {
@@ -1367,13 +1409,12 @@ class ActiveSessionActivity : AppCompatActivity() {
         val dialogRatingBar = dialogView.findViewById<NonDraggableRatingBar>(R.id.dialogRatingBar)
         val dialogComment = dialogView.findViewById<EditText>(R.id.dialogComment)
 
-
-
         // Dialog Setup
         endSessionDialogBuilder.apply {
             setView(dialogView)
             setCancelable(false)
             setPositiveButton(R.string.endSessionDialogOk) { _, _ ->
+                saveLibraryItemMetronome()
                 val rating = dialogRatingBar.rating.toInt()
                 finishSession(rating, dialogComment.text.toString())
             }

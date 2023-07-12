@@ -83,6 +83,13 @@ object PTDatabaseMigrationOneToTwo : Migration(1,2) {
         db.execSQL("DROP TABLE `PracticeSession`")
         db.execSQL("ALTER TABLE `_new_session` RENAME TO `session`")
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_session_profile_id` ON `session` (`profile_id`)")
+        db.execSQL("CREATE TABLE IF NOT EXISTS `_new_library_item` (`name` TEXT NOT NULL, `color_index` INTEGER NOT NULL, `library_folder_id` INTEGER, `profile_id` INTEGER NOT NULL, `archived` BOOLEAN NOT NULL DEFAULT 0, `order` INTEGER NOT NULL DEFAULT 0, `bpm` INTEGER, `bpb` INTEGER, `cpb` INTEGER, `created_at` INTEGER NOT NULL DEFAULT 0, `modified_at` INTEGER NOT NULL DEFAULT 0, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL)")
+        db.execSQL("""INSERT INTO `_new_library_item` (`name`, `color_index`, `library_folder_id`, `profile_id`, `archived`, `order`, `bpm`, `created_at`, `modified_at`, `id`)
+                SELECT `name`, `color_index`, `library_folder_id`, `profile_id`, `archived`, `order`, NULL, NULL, NULL, `created_at`, `modified_at`, `id` FROM `LibraryItem`""")
+        db.execSQL("DROP TABLE `LibraryItem`")
+        db.execSQL("ALTER TABLE `_new_library_item` RENAME TO `library_item`")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_library_item_library_folder_id` ON `library_item` (`library_folder_id`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_library_item_profile_id` ON `library_item` (`profile_id`)")
 
         Log.d("POST_MIGRATION", "Starting Post Migration...")
 

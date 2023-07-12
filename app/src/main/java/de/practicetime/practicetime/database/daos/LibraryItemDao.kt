@@ -11,8 +11,7 @@ import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Transaction
 import de.practicetime.practicetime.database.BaseDao
-import de.practicetime.practicetime.database.entities.LibraryItem
-import de.practicetime.practicetime.database.entities.LibraryItemWithGoalDescriptions
+import de.practicetime.practicetime.database.entities.*
 
 @Dao
 abstract class LibraryItemDao : BaseDao<LibraryItem>(tableName = "library_item") {
@@ -48,10 +47,30 @@ abstract class LibraryItemDao : BaseDao<LibraryItem>(tableName = "library_item")
     @Query("SELECT * FROM library_item WHERE archived=0 OR NOT :activeOnly")
     abstract suspend fun get(activeOnly: Boolean = false): List<LibraryItem>
 
+    @Query("SELECT * FROM library_item WHERE id=:id")
+    abstract suspend fun getById(id: Long): LibraryItem?
+
     @Query("SELECT * FROM library_item WHERE library_folder_id=:libraryFolderId")
     abstract suspend fun getFromFolder(libraryFolderId: Long): List<LibraryItem>
 
     @Transaction
     @Query("SELECT * FROM library_item WHERE id=:id")
     abstract suspend fun getWithGoalDescriptions(id: Long): LibraryItemWithGoalDescriptions?
+
+    @Transaction
+    open suspend fun updateMetronome(
+        id: Long,
+        newBpm: Int,
+        newBpb: Int,
+        newCpb: Int
+    ) {
+        getById(id)?.let {library_item ->
+            library_item.apply {
+                bpm = newBpm
+                bpb = newBpb
+                cpb = newCpb
+            }
+            update(library_item)
+        }
+    }
 }

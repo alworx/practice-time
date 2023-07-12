@@ -25,6 +25,9 @@ data class LibraryItem (
     @ColumnInfo(name="profile_id", index = true) val profileId: Int = 0,
     @ColumnInfo(name="archived") var archived: Boolean = false,
     @ColumnInfo(name="order", defaultValue = "0") var order: Int = 0,
+    @ColumnInfo(name="bpm", defaultValue = "null") var bpm: Int? = null,
+    @ColumnInfo(name="bpb", defaultValue = "null") var bpb: Int? = null,
+    @ColumnInfo(name="cpb", defaultValue = "null") var cpb: Int? = null,
 ) : ModelWithTimestamps() {
     override fun toString(): String {
         return super.toString() +
@@ -33,6 +36,7 @@ data class LibraryItem (
             "\tlibrary_folder_id: \t${this.libraryFolderId}\n" +
             "\tprofile_id: \t\t${this.profileId}\n" +
             "\tarchived: \t\t\t${this.archived}\n" +
-            "\torder: \t\t\t\t${this.order}\n"
+            "\torder: \t\t\t\t${this.order}\n" +
+            "\tmetronome: \t\t\t\t${this.bpm}bpm ${this.bpb}/${this.cpb}\n"
     }
 }
