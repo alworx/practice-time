@@ -38,7 +38,7 @@ abstract class LibraryItemDao(
     abstract fun get(activeOnly: Boolean = false): Flow<List<LibraryItem>>
 
     @Query("SELECT * FROM library_item WHERE id=:id")
-    abstract suspend fun getById(id: Long): LibraryItem?
+    abstract suspend fun getById(id: UUID): LibraryItem?
 
     @Query("SELECT * FROM library_item WHERE library_folder_id=:libraryFolderId")
     abstract suspend fun getFromFolder(libraryFolderId: UUID): List<LibraryItem>
@@ -46,6 +46,21 @@ abstract class LibraryItemDao(
     @Transaction
     @Query("SELECT * FROM library_item WHERE id=:id")
     abstract suspend fun getWithGoalDescriptions(id: UUID): LibraryItemWithGoalDescriptions?
+
+
+//    @RawQuery(observedEntities = [LibraryItem::class])
+//    protected abstract fun getAsFlow(query: SupportSQLiteQuery): Flow<LibraryItem>
+//
+//    open fun getAsFlow(id: UUID): Flow<LibraryItem> {
+//        return getAsFlow(SimpleSQLiteQuery("SELECT * FROM library_item WHERE id=x'${UUIDConverter.toDBString(id)}'"))
+//    }
+//
+//    @RawQuery(observedEntities = [LibraryItem::class])
+//            protected abstract fun getAllAsFlow(query: SupportSQLiteQuery): Flow<List<LibraryItem>>
+//
+//            open fun getAllAsFlow(): Flow<List<LibraryItem>> {
+//        return getAllAsFlow(SimpleSQLiteQuery("SELECT * FROM library_item"))
+//    }
 
     @Transaction
     open suspend fun updateMetronome(

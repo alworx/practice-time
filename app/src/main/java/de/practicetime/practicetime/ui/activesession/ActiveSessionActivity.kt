@@ -1209,7 +1209,7 @@ class ActiveSessionActivity : AppCompatActivity() {
                         cpb = mService.metronomeClicksPerBeat
                     }
                     lifecycleScope.launch {
-                        PracticeTime.libraryItemDao.updateMetronome(
+                        PTDatabase.getInstance(applicationContext).libraryItemDao.updateMetronome(
                             prevId,
                             mService.metronomeBeatsPerMinute,
                             mService.metronomeBeatsPerBar,
