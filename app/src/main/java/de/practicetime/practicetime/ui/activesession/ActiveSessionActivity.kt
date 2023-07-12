@@ -47,11 +47,13 @@ import com.google.android.material.snackbar.Snackbar
 import de.practicetime.practicetime.PracticeTime
 import de.practicetime.practicetime.R
 import de.practicetime.practicetime.components.NonDraggableRatingBar
+import de.practicetime.practicetime.dataStore
 import de.practicetime.practicetime.database.PTDatabase
 import de.practicetime.practicetime.database.SessionWithSections
 import de.practicetime.practicetime.database.entities.LibraryItem
 import de.practicetime.practicetime.database.entities.Section
 import de.practicetime.practicetime.database.entities.Session
+import de.practicetime.practicetime.repository.UserPreferencesRepository
 import de.practicetime.practicetime.services.RecorderService
 import de.practicetime.practicetime.services.SessionForegroundService
 import de.practicetime.practicetime.ui.MainActivity
@@ -63,6 +65,7 @@ import de.practicetime.practicetime.utils.TIME_FORMAT_MS_DIGITAL
 import de.practicetime.practicetime.utils.getCurrTimestamp
 import de.practicetime.practicetime.utils.getDurationString
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.IOException
@@ -93,6 +96,8 @@ class ActiveSessionActivity : AppCompatActivity() {
     private lateinit var recordingBottomSheet: RecyclerView
     private lateinit var recordingBottomSheetBehaviour: BottomSheetBehavior<RecyclerView>
 
+    private lateinit var userPreferencesRepository: UserPreferencesRepository
+
     /** Defines callbacks for service binding, passed to bindService()  */
     private val connection = object : ServiceConnection {
 
@@ -116,6 +121,8 @@ class ActiveSessionActivity : AppCompatActivity() {
 
             // initialize persistent bottom sheet dialog for metronome
             initMetronomeBottomSheet()
+
+            userPreferencesRepository = UserPreferencesRepository(application.dataStore)
         }
 
         override fun onServiceDisconnected(arg0: ComponentName) {
@@ -1164,29 +1171,36 @@ class ActiveSessionActivity : AppCompatActivity() {
         }) {
             return  // ignore press then
         } else {
-            saveLibraryItemMetronome()
+            lifecycleScope.launch {
+                userPreferencesRepository.userPreferences.map { preferences ->
+                    preferences.storeMetronomePerLibraryItem
+                }.let { saveLibraryItemMetronome() }
+            }
         }
 
         // start a new section for the chosen library item
         mService.startNewSection(libraryItemId, activeLibraryItems[index].name)
 
-        // set metronome settings when set in library item
-        activeLibraryItems[index].bpm?.let {
-            mService.metronomeBeatsPerMinute = activeLibraryItems[index].bpm!!
-        }
-        activeLibraryItems[index].bpb?.let {
-            mService.metronomeBeatsPerBar =  activeLibraryItems[index].bpb!!
-            bpbView.text = mService.metronomeBeatsPerBar.toString()
-        }
-        activeLibraryItems[index].cpb?.let {
-            mService.metronomeClicksPerBeat = activeLibraryItems[index].cpb!!
-            cpbView.text = mService.metronomeClicksPerBeat.toString()
-        }
+        lifecycleScope.launch {
+            userPreferencesRepository.userPreferences.map { preferences -> preferences.storeMetronomePerLibraryItem }.let {
+                // set metronome settings when set in library item
+                activeLibraryItems[index].bpm?.let {
+                    mService.metronomeBeatsPerMinute = activeLibraryItems[index].bpm!!
+                }
+                activeLibraryItems[index].bpb?.let {
+                    mService.metronomeBeatsPerBar = activeLibraryItems[index].bpb!!
+                    bpbView.text = mService.metronomeBeatsPerBar.toString()
+                }
+                activeLibraryItems[index].cpb?.let {
+                    mService.metronomeClicksPerBeat = activeLibraryItems[index].cpb!!
+                    cpbView.text = mService.metronomeClicksPerBeat.toString()
+                }
 
-        if (activeLibraryItems[index].let { li -> li.bpm != null || li.bpb != null || li.cpb != null  }) {
-            syncUIToNewBPM()
+                if (activeLibraryItems[index].let { li -> li.bpm != null || li.bpb != null || li.cpb != null }) {
+                    syncUIToNewBPM()
+                }
+            }
         }
-
         updateActiveSectionView()
         adaptBottomTextView(true)
 
@@ -1197,7 +1211,7 @@ class ActiveSessionActivity : AppCompatActivity() {
 
     }
 
-    private fun saveLibraryItemMetronome() {
+    private suspend fun saveLibraryItemMetronome() {
         // save bpm to previous library item
         mService.sectionBuffer.last().let { it ->
             it.first.libraryItemId.let {prevId ->
@@ -1208,14 +1222,12 @@ class ActiveSessionActivity : AppCompatActivity() {
                         bpb = mService.metronomeBeatsPerBar
                         cpb = mService.metronomeClicksPerBeat
                     }
-                    lifecycleScope.launch {
-                        PTDatabase.getInstance(applicationContext).libraryItemDao.updateMetronome(
-                            prevId,
-                            mService.metronomeBeatsPerMinute,
-                            mService.metronomeBeatsPerBar,
-                            mService.metronomeClicksPerBeat
-                        )
-                    }
+                    PTDatabase.getInstance(applicationContext).libraryItemDao.updateMetronome(
+                        prevId,
+                        mService.metronomeBeatsPerMinute,
+                        mService.metronomeBeatsPerBar,
+                        mService.metronomeClicksPerBeat
+                    )
                 }
             }
         }
@@ -1415,7 +1427,13 @@ class ActiveSessionActivity : AppCompatActivity() {
             setView(dialogView)
             setCancelable(false)
             setPositiveButton(R.string.endSessionDialogOk) { _, _ ->
-                saveLibraryItemMetronome()
+
+                lifecycleScope.launch {
+                    userPreferencesRepository.userPreferences.map { preferences ->
+                        preferences.storeMetronomePerLibraryItem
+                    }.let { saveLibraryItemMetronome() }
+                }
+
                 val rating = dialogRatingBar.rating.toInt()
                 finishSession(rating, dialogComment.text.toString())
             }

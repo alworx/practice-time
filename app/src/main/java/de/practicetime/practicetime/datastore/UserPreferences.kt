@@ -127,6 +127,8 @@ data class UserPreferences (
 
     val appIntroDone: Boolean,
 
+    val storeMetronomePerLibraryItem: Boolean,
+
     // Sorting
     val libraryFolderSortMode: LibraryFolderSortMode,
     val libraryFolderSortDirection: SortDirection,

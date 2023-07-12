@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.map
 object PreferenceKeys {
     val THEME = stringPreferencesKey("theme")
     val APPINTRO_DONE = booleanPreferencesKey("appintro_done")
+    val STORE_METRONOME_PER_LIBRARY_ITEM = booleanPreferencesKey("store_metronome_per_library_item")
     val LIBRARY_FOLDER_SORT_MODE = stringPreferencesKey("library_folder_sort_mode")
     val LIBRARY_FOLDER_SORT_DIRECTION = stringPreferencesKey("library_folder_sort_direction")
     val LIBRARY_ITEM_SORT_MODE = stringPreferencesKey("library_item_sort_mode")
@@ -36,6 +37,8 @@ class UserPreferencesRepository(
             theme = ThemeSelections.valueOrDefault(preferences[PreferenceKeys.THEME]),
 
             appIntroDone = preferences[PreferenceKeys.APPINTRO_DONE] ?: false,
+
+            storeMetronomePerLibraryItem = preferences[PreferenceKeys.STORE_METRONOME_PER_LIBRARY_ITEM] ?: true,
 
             libraryFolderSortMode = LibraryFolderSortMode.valueOrDefault(preferences[PreferenceKeys.LIBRARY_FOLDER_SORT_MODE]),
             libraryFolderSortDirection = SortDirection.valueOrDefault(preferences[PreferenceKeys.LIBRARY_FOLDER_SORT_DIRECTION]),
